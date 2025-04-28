@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flask: Run TranScore",
+      "type": "python",
+      "request": "launch",
+      "program": "${C:/Users/funjm/OneDrive/문서/GitHub/TranScore-Backend/src}/run.py",
+      "env": {
+        "PYTHONPATH": "C:/Users/funjm/OneDrive/문서/GitHub/TranScore-Backend/src"
+      }
+    }
+  ]
+}
