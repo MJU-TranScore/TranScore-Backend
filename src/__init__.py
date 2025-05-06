@@ -11,7 +11,6 @@ def create_app():
     app.config.from_object(Config)
 
     # Swagger 초기화
-    # 🔄 이 부분을 기존 Swagger(app) 대신에!
     swagger_template = {
         "swagger": "2.0",
         "info": {
@@ -39,12 +38,14 @@ def create_app():
     db.init_app(app)
 
     # 블루프린트 등록
-    from src.routes.auth import auth_bp
     from src.routes.index import index_bp
+    app.register_blueprint(index_bp)
+    
+    #transcore 블루프린트 등록
+    from src.routes.auth import auth_bp
     from src.routes.score import score_bp  
 
     app.register_blueprint(auth_bp)
-    app.register_blueprint(index_bp)
     app.register_blueprint(score_bp)      
 
     return app
