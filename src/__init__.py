@@ -43,9 +43,11 @@ def create_app():
     
     #transcore 블루프린트 등록
     from src.routes.auth import auth_bp
+    from src.routes.user import user_bp
     from src.routes.score import score_bp  
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(user_bp)
     app.register_blueprint(score_bp)      
 
     return app
