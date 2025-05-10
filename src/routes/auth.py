@@ -89,13 +89,13 @@ def kakao_callback():
     }
 })
 
-@auth_bp.route('/kakao/token', methods=['POST'])
 def kakao_token():
     try:
         # 요청 내용 디버깅 로그
+        print("🔥 /auth/kakao/token 요청 도착")
         print("🔥 REQUEST HEADERS:", dict(request.headers))
         print("🔥 RAW BODY:", request.get_data(as_text=True))
-
+        
         # JSON이든 form이든 유연하게 처리
         data = request.get_json(silent=True) or request.form or request.values
         code = data.get('code') if data else None
