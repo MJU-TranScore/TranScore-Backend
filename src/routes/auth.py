@@ -88,40 +88,56 @@ def kakao_callback():
         }
     }
 })
+
+@auth_bp.route('/kakao/token', methods=['POST'])
 def kakao_token():
-    data = request.get_json()
-    code = data.get('code') if data else None
+    try:
+        # 요청 내용 디버깅 로그
+        print("🔥 REQUEST HEADERS:", dict(request.headers))
+        print("🔥 RAW BODY:", request.get_data(as_text=True))
 
-    if not code:
-        return jsonify({'error': 'No code provided'}), 400
+        # JSON이든 form이든 유연하게 처리
+        data = request.get_json(silent=True) or request.form or request.values
+        code = data.get('code') if data else None
 
-    token_url = "https://kauth.kakao.com/oauth/token"
-    token_data = {
-        'grant_type': 'authorization_code',
-        'client_id': Config.KAKAO_CLIENT_ID,
-        'redirect_uri': Config.KAKAO_REDIRECT_URI,
-        'code': code,
-    }
-    token_response = requests.post(token_url, data=token_data)
-    
-    print("Kakao token response:", token_response.status_code, token_response.text)
-    
-    token_json = token_response.json()
-    access_token = token_json.get('access_token')
-    if not access_token:
-        return jsonify({'error': 'Failed to get Kakao access token'}), 400
+        if not code:
+            print("❌ No code provided")
+            return jsonify({'error': 'No code provided'}), 400
 
-    user_info_url = "https://kapi.kakao.com/v2/user/me"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    user_info_response = requests.get(user_info_url, headers=headers)
-    user_info = user_info_response.json()
+        # 카카오 토큰 요청
+        token_url = "https://kauth.kakao.com/oauth/token"
+        token_data = {
+            'grant_type': 'authorization_code',
+            'client_id': Config.KAKAO_CLIENT_ID,
+            'redirect_uri': Config.KAKAO_REDIRECT_URI,
+            'code': code,
+        }
+        token_response = requests.post(token_url, data=token_data)
+        print("🔐 Kakao token response:", token_response.status_code, token_response.text)
 
-    kakao_id = user_info.get("id")
-    nickname = user_info.get("properties", {}).get("nickname", "")
-    profile_image = user_info.get("properties", {}).get("profile_image", "")
+        token_json = token_response.json()
+        access_token = token_json.get('access_token')
+        if not access_token:
+            print("❌ Failed to get access token")
+            return jsonify({'error': 'Failed to get Kakao access token'}), 400
 
-    result = handle_kakao_login(kakao_id, nickname, profile_image)
-    return jsonify(result), 200
+        # 유저 정보 요청
+        user_info_url = "https://kapi.kakao.com/v2/user/me"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        user_info_response = requests.get(user_info_url, headers=headers)
+        user_info = user_info_response.json()
+
+        kakao_id = user_info.get("id")
+        nickname = user_info.get("properties", {}).get("nickname", "")
+        profile_image = user_info.get("properties", {}).get("profile_image", "")
+
+        result = handle_kakao_login(kakao_id, nickname, profile_image)
+        return jsonify(result), 200
+
+    except Exception as e:
+        print("❌ Unexpected error in kakao_token:", str(e))
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
 
 
 
