@@ -2,7 +2,7 @@ name: Flask CI/CD Pipeline
 
 on:
   pull_request:
-    branches: [develop, main] # develop과 main으로 PR 들어올 때만
+    branches: [develop, master]
 
 jobs:
   ci:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.13.3"
+          python-version: "3.12.10"
 
       - name: Install dependencies
         run: |
@@ -30,7 +30,7 @@ jobs:
   cd:
     name: CD (Deploy to Server)
     runs-on: ubuntu-latest
-    if: github.base_ref == 'main'
+    if: github.base_ref == 'master'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.13.3"
+          python-version: "3.12.10"
 
       - name: Install dependencies
         run: |
