@@ -1,34 +1,31 @@
-import os
-from werkzeug.utils import secure_filename
-from src.config import SCORE_UPLOAD_DIR
+from src.models.score import db, Score
 
-# 임시 DB 시뮬레이션
-score_storage = {}
-score_id_counter = 1
-
-def upload_score(file):
-    global score_id_counter
-    filename = secure_filename(file.filename)
-    file_path = os.path.join(SCORE_UPLOAD_DIR, filename)
-    file.save(file_path)
-
-    score_data = {
-        'id': score_id_counter,
-        'filename': filename,
-        'path': file_path
-    }
-
-    score_storage[score_id_counter] = score_data
-    score_id_counter += 1
-
-    return score_data
+def save_score_to_db(score_id, filename, xml_path, pdf_path):
+    new_score = Score(
+        id=score_id,
+        original_filename=filename,
+        xml_path=xml_path,
+        pdf_path=pdf_path
+    )
+    db.session.add(new_score)
+    db.session.commit()
 
 def get_score(score_id):
-    return score_storage.get(score_id)
+    score = Score.query.get(score_id)
+    if score:
+        return {
+            'score_id': score.id,
+            'original_filename': score.original_filename,
+            'xml_path': score.xml_path,
+            'pdf_path': score.pdf_path,
+            'created_at': score.created_at.isoformat()
+        }
+    return None
 
 def delete_score(score_id):
-    score = score_storage.pop(score_id, None)
+    score = Score.query.get(score_id)
     if score:
-        os.remove(score['path'])
+        db.session.delete(score)
+        db.session.commit()
         return True
     return False
