@@ -1,14 +1,19 @@
 name: Flask CI/CD Pipeline
 
 on:
+  push:
+    branches:
+      - master
+      - develop
   pull_request:
-    branches: [develop, master]
+    branches:
+      - develop
 
 jobs:
   ci:
     name: CI (Test Only)
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    if: github.base_ref == 'develop'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -26,11 +31,12 @@ jobs:
       - name: Run tests
         run: |
           echo "pytest 테스트 여기에 추가할 수 있음"
+          # 예: pytest
 
   cd:
     name: CD (Deploy to Server)
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    if: github.base_ref == 'master'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -51,7 +57,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: |s
+          script: |
             cd /home/ubuntu/transcore-backend
             git pull origin master
             source venv/bin/activate
