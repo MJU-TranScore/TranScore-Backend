@@ -45,9 +45,12 @@ def create_app():
     from src.routes.auth import auth_bp
     from src.routes.user import user_bp
     from src.routes.score import score_bp  
+    from src.routes.transform import transform_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
-    app.register_blueprint(score_bp)      
+    app.register_blueprint(score_bp)
+    app.register_blueprint(transform_bp)   
+      
 
     return app
