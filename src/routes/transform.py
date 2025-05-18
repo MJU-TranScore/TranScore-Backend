@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 from src.utils.transpose_helper import transpose_key
 from src.models.score import Score
+from src.models.result import Result
 from src.services.transform_service import perform_transpose, extract_melody
-from src.models.db import db
-
 
 transform_bp = Blueprint('transform', __name__)
 
@@ -27,11 +26,11 @@ def transpose_preview_route():
             current_key:
               type: string
               example: "F"
-              description: "현재 키 (예: C, D#, F# 등)"
+              description: 현재 키
             shift:
               type: integer
               example: -1
-              description: "변환할 반음 수 (예: 2, -1)"
+              description: 변환할 반음 수
           required:
             - current_key
             - shift
@@ -56,9 +55,7 @@ def transpose_preview_route():
               type: string
               example: "Invalid key: Z"
     """
-
     data = request.get_json()
-
     current_key = data.get('current_key')
     shift = data.get('shift')
 
@@ -92,7 +89,7 @@ def transform_transpose_route(score_id):
         required: true
         schema:
           type: string
-        description: "변환할 대상 악보의 ID"
+        description: 변환할 대상 악보의 ID
       - in: body
         name: body
         required: true
@@ -102,7 +99,7 @@ def transform_transpose_route(score_id):
             shift:
               type: integer
               example: -1
-              description: "변경할 반음 수"
+              description: 변경할 반음 수
           required:
             - shift
     responses:
@@ -111,9 +108,9 @@ def transform_transpose_route(score_id):
         schema:
           type: object
           properties:
-            transform_transpose_id:
-              type: string
-              example: "abc123-uuid"
+            result_id:
+              type: integer
+              example: 101
             message:
               type: string
               example: "Transpose completed successfully"
@@ -139,11 +136,11 @@ def transform_transpose_route(score_id):
     result_id = perform_transpose(score, int(shift))
 
     return jsonify({
-        'transform_transpose_id': result_id,
+        'result_id': result_id,
         'message': 'Transpose completed successfully'
     }), 201
-    
-    
+
+
 @transform_bp.route('/score/<string:score_id>/melody', methods=['POST'])
 def melody_extract_route(score_id):
     """
@@ -153,12 +150,12 @@ def melody_extract_route(score_id):
       - transform
     summary: 업로드된 악보에서 특정 마디 범위의 멜로디를 추출하고 MP3 파일을 생성합니다
     parameters:
-      - name: score_id
-        in: path
+      - in: path
+        name: score_id
         required: true
         schema:
           type: string
-        description: "멜로디를 추출할 대상 악보의 ID"
+        description: 멜로디를 추출할 대상 악보의 ID
       - in: body
         name: body
         required: true
@@ -168,11 +165,11 @@ def melody_extract_route(score_id):
             start_measure:
               type: integer
               example: 1
-              description: "시작 마디 (1부터 시작)"
+              description: 시작 마디
             end_measure:
               type: integer
               example: 8
-              description: "종료 마디"
+              description: 종료 마디
           required:
             - start_measure
             - end_measure
@@ -182,12 +179,12 @@ def melody_extract_route(score_id):
         schema:
           type: object
           properties:
-            melody_result_id:
-              type: string
-              example: "xyz456-uuid"
+            result_id:
+              type: integer
+              example: 205
             mp3_path:
               type: string
-              example: "convert_result/xyz456-uuid.mp3"
+              example: "convert_result/205.mp3"
             message:
               type: string
               example: "Melody extracted from measure 1 to 8"
@@ -204,16 +201,17 @@ def melody_extract_route(score_id):
     start = data.get('start_measure')
     end = data.get('end_measure')
 
-    score = Score.query.filter_by(id=score_id).first()
+    score = Score.query.get(score_id)
     if not score:
         return jsonify({'error': 'Score not found'}), 404
 
     result_id = extract_melody(score, start, end)
 
-    mp3_path = f"convert_result/{result_id}.mp3"
+    result = Result.query.get(result_id)
+    mp3_path = result.audio_path if result else f"convert_result/{result_id}.mp3"
+
     return jsonify({
-        'melody_result_id': result_id,
+        'result_id': result_id,
         'mp3_path': mp3_path,
         'message': f'Melody extracted from measure {start} to {end}'
     }), 200
-
