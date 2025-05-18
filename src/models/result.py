@@ -1,10 +1,10 @@
 from .db import db
 
 class Result(db.Model):
-    __tablename__ = 'result'
+    __tablename__ = 'results'
 
-    id = db.Column(db.Integer, primary_key=True)
-    score_id = db.Column(db.String(64), db.ForeignKey('scores.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    score_id = db.Column(db.Integer, db.ForeignKey('scores.id'), nullable=False)
 
     # 결과 타입: 'transpose', 'lyrics', 'melody'
     type = db.Column(db.String(50), nullable=False)

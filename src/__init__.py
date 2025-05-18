@@ -47,12 +47,16 @@ def create_app():
     from src.routes.score import score_bp  
     from src.routes.transform import transform_bp
     from src.routes.result import result_bp
+    from src.routes.mypage_upload_score import upload_score_bp
+    from src.routes.mypage_result_score import result_score_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(score_bp)
     app.register_blueprint(transform_bp) 
-    app.register_blueprint(result_bp)  
+    app.register_blueprint(result_bp) 
+    app.register_blueprint(upload_score_bp)
+    app.register_blueprint(result_score_bp) 
       
 
     return app
