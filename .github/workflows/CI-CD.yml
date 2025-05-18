@@ -7,6 +7,7 @@ on:
       - develop
   pull_request:
     branches:
+      - master
       - develop
 
 jobs:
@@ -35,7 +36,8 @@ jobs:
 
   cd:
     name: CD (Deploy to Server)
-    if: github.ref == 'refs/heads/master'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'master')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
