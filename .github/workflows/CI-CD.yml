@@ -3,17 +3,19 @@ name: Flask CI/CD Pipeline
 on:
   push:
     branches:
-      - master
       - develop
+      - master
   pull_request:
     branches:
-      - master
       - develop
+      - master
 
 jobs:
   ci:
     name: CI (Test Only)
-    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -36,8 +38,9 @@ jobs:
 
   cd:
     name: CD (Deploy to Server)
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
-      (github.event_name == 'pull_request' && github.base_ref == 'master')
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
