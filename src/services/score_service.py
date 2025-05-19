@@ -1,14 +1,14 @@
 from src.models.score import db, Score
 
-def save_score_to_db(score_id, filename, xml_path, pdf_path):
+def save_score_to_db(filename, xml_path, pdf_path):
     new_score = Score(
-        id=score_id,
         original_filename=filename,
         xml_path=xml_path,
         pdf_path=pdf_path
     )
     db.session.add(new_score)
     db.session.commit()
+    return new_score.id  # 새로 생성된 정수 ID를 반환
 
 def get_score(score_id):
     score = Score.query.get(score_id)
