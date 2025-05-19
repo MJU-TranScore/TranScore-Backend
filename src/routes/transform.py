@@ -140,6 +140,62 @@ def transform_transpose_route(score_id):
         'message': 'Transpose completed successfully'
     }), 201
 
+@transform_bp.route('/score/<int:score_id>/lyrics', methods=['POST'])
+def lyrics_extract_route(score_id):
+    """
+    가사 추출 API
+    ---
+    tags:
+      - transform
+    summary: 업로드된 악보에서 가사를 추출하여 텍스트 파일로 저장하고 결과 ID를 반환합니다
+    parameters:
+      - in: path
+        name: score_id
+        required: true
+        schema:
+          type: integer
+        description: 가사를 추출할 대상 악보의 ID
+    responses:
+      200:
+        description: 가사 추출 완료
+        schema:
+          type: object
+          properties:
+            result_id:
+              type: integer
+              example: 301
+            text_path:
+              type: string
+              example: "convert_result/301.txt"
+            message:
+              type: string
+              example: "Lyrics extracted successfully"
+      404:
+        description: 악보 ID를 찾을 수 없음
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Score not found"
+    """
+    score = Score.query.get(score_id)
+    if not score:
+        return jsonify({'error': 'Score not found'}), 404
+
+    from src.services.transform_service import extract_lyrics
+    result_id = extract_lyrics(score)
+
+    result = Result.query.get(result_id)
+    text_path = result.text_path if result else f"convert_result/{result_id}.txt"
+
+    return jsonify({
+        'result_id': result_id,
+        'text_path': text_path,
+        'message': 'Lyrics extracted successfully'
+    }), 200
+
+
 
 @transform_bp.route('/score/<int:score_id>/melody', methods=['POST'])
 def melody_extract_route(score_id):
