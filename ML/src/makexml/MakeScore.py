@@ -1,6 +1,5 @@
 from fractions import Fraction
-from music21 import chord,  stream, note, meter, key, clef, metadata
-from music21 import interval
+from music21 import chord,  stream, note, meter, key, clef, metadata, interval, bar
 from .ScoreInfo import ScoreInfo
 from .ScoreIterator import ScoreIterator
 from .MeasureIterator import MeasureIterator
@@ -8,13 +7,16 @@ from .Pitch import Pitch
 from .StafflineUtils import StafflineUtils
 from .IntervalPreset import IntervalPreset
 from .MakeTestData import MakeTestData
-from ML.src.FilePath import BASE_DIR
+from .TextProcesser import TextProcesser
+from ..FilePath import BASE_DIR
 import random
 import string
+from PIL import Image
 import cv2
 from ultralytics import YOLO
 import pandas as pd 
 import os
+import numpy as np
 
 class MakeScore:
     # 학습된 모델 위치와 그걸 기반으로 한 모델 객체 
@@ -51,10 +53,73 @@ class MakeScore:
         png_list = []
         return png_list
     """
+
+    #추가한 함수
+    #staff_line이 겹쳐 탐지된 경우, y좌표 비슷한 줄끼리 병합하여
+    #하나의 줄로 만든다. x1=0, x2=image_width로 강제 확장
+    @staticmethod
+    def merge_staff_lines(df: pd.DataFrame, image_width: int, y_threshold: int = 10) -> pd.DataFrame:
+        staff_lines = df[df["class_name"] == "staff_line"].copy().reset_index(drop=True)
+        others = df[df["class_name"] != "staff_line"].copy()
+
+        merged = []
+        used = [False] * len(staff_lines)
+
+        for i in range(len(staff_lines)):
+            if used[i]:
+                continue
+
+            y1_i = staff_lines.loc[i, "y1"]
+            y2_i = staff_lines.loc[i, "y2"]
+            conf_i = staff_lines.loc[i, "confidence"]
+            class_id_i = staff_lines.loc[i, "class_id"]
+
+            group = [staff_lines.loc[i]]
+            used[i] = True
+
+            for j in range(i + 1, len(staff_lines)):
+                if used[j]:
+                    continue
+                y1_j = staff_lines.loc[j, "y1"]
+                y2_j = staff_lines.loc[j, "y2"]
+
+                if abs(y1_i - y1_j) < y_threshold and abs(y2_i - y2_j) < y_threshold:
+                    group.append(staff_lines.loc[j])
+                    used[j] = True
+
+            y1_avg = float(np.mean([g["y1"] for g in group]))
+            y2_avg = float(np.mean([g["y2"] for g in group]))
+            x1 = 0
+            x2 = image_width
+            conf = max([g["confidence"] for g in group])
+
+            merged.append({
+                "class_id": class_id_i,
+                "class_name": "staff_line",
+                "confidence": conf,
+                "x1": x1,
+                "y1": y1_avg,
+                "x2": x2,
+                "y2": y2_avg,
+                "x_center": (x1 + x2) / 2,
+                "y_center": (y1_avg + y2_avg) / 2,
+                "width": x2 - x1,
+                "height": y2_avg - y1_avg
+            })
+
+        df_merged = pd.DataFrame(merged)
+        result_df = pd.concat([others, df_merged], ignore_index=True)
+        result_df = result_df.sort_values(by=["class_name", "x_center", "y_center"]).reset_index(drop=True)
+        return result_df
+
+
     # 모델의 예측 결과를 pandas dataframe으로 변환시켜주는 함수 
     def convert_result_to_df(result):
         rows = []
-        boxes = result.boxes  
+        boxes = result.boxes 
+
+        image_width = result.orig_img.shape[1]
+
         for i in range(len(boxes)):
             class_id = int(boxes.cls[i])
             class_name = result.names[class_id]  
@@ -75,14 +140,15 @@ class MakeScore:
             rows.append(row)
 
         df = pd.DataFrame(rows)
-
+        # 중복되는 staff_line 제거 
+        df = MakeScore.merge_staff_lines(df, image_width=image_width)
         # 클래스 이름으로 정렬하고 좌표기준으로 정렬
         df_sorted = df.sort_values(by=["class_name", "x_center", "y_center"]) 
 
         return df_sorted       
 
 
-    # 이미지 리스트를 모델을 통해 탑지하는 함수 
+    # 이미지 리스트를 모델을 통해 탐지하는 함수 
     @staticmethod
     def detect_object(img_list):
         detection_results = []
@@ -165,13 +231,35 @@ class MakeScore:
             # 저장된 dataframe에서 보표에 대한 정보만 들고옴
             staff_df = object_df[object_df["class_name"] == "staff_line"].copy()
             staff_df = staff_df.sort_values(by="y1").reset_index(drop=True)
+
+            # 해당 페이지의 탐지결과에서 가사 영역만 가진 dataframe과 코드 영역만 가진 dataframe
+            lyrics_df = object_df[object_df["class_name"] == "lyrics"].copy()
+            harmony_df = object_df[object_df["class_name"] == "harmony"].copy()
+
             # 들고온 보표의 개수만큼 반복문
             for staff_index in range(len(staff_df)):
                 row = staff_df.iloc[staff_index]
                 sx1, sy1, sx2, sy2 = int(row["x1"]), int(row["y1"]), int(row["x2"]), int(row["y2"])
 
+                # 해당 보표의 가사만 골라내기
+                if staff_index < len(staff_df) - 1: # 마지막 보표가 아닌 경우
+                    next_row = staff_df.iloc[staff_index+1]
+                    cur_lyrics_df = lyrics_df[
+                        (lyrics_df["y_center"] > row["y2"]) &
+                        (lyrics_df["y_center"] < next_row["y1"])
+                        ].copy()
+                else: # 마지막 보표인 경우
+                    cur_lyrics_df = lyrics_df[
+                        (lyrics_df["y_center"] > row["y2"])
+                        ].copy()
+                    
+                # 박스쳐진 staff_line에 선이 5개가 안들어가있는 경우가 있어서 y좌표에 약간의 padding을 적용
+                y_padding = int(row["height"] * 0.05)
+                y1_pad = max(0, sy1 - y_padding)
+                y2_pad = min(vis.shape[0], sy2 + y_padding)
+
                 # 이미지에서 잘라냄
-                staff_crop = vis[sy1:sy2, sx1:sx2]
+                staff_crop = vis[y1_pad:y2_pad, sx1:sx2]
 
                 # OpenCV로 5줄 찾음
                 staff_lines = StafflineUtils.extract_5lines(staff_crop)
@@ -208,6 +296,7 @@ class MakeScore:
                                 m.append(clef.TrebleClef())
                             else:
                                 m.append(clef.BassClef())
+
                     elif "keysig" in cls: # 조표
                         keysig = cls.split("_")[1]
                         print("keysig_index: ", cls)
@@ -220,6 +309,9 @@ class MakeScore:
                             measiter.cur_keysig = keysig_index
                             measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
                             print(measiter.interval_list)
+                            for el in m.getElementsByClass(key.KeySignature):
+                                m.remove(el)
+                            m.insert(0, key.KeySignature(keysig_index))
                             m.append(key.KeySignature(keysig_index))
 
                     elif "timesig" in cls: # 박자표
@@ -234,18 +326,20 @@ class MakeScore:
                         r = note.Rest()
                         r.duration.quarterLength = MakeScore.REST_DURATION_MAP[cls]
                         m.append(r)
-                        print(cls)
+                        #print(cls)
 
                     elif cls in MakeScore.NOTE_DURATION_MAP: # 음표
                         duration = MakeScore.NOTE_DURATION_MAP[cls]
+                        c = chord.Chord()
                         # 점 음표 확인
                         note_box = (row["x1"], row["y1"], row["x2"], row["y2"])
-                        print(note_box)
+                        #print(note_box)
                         if Pitch.is_dotted_note(note_box, cur_staff_df):
                             duration *= 1.5
                             print("dot",cls)
                         else:
                             print(cls)
+
                         # pitch 계산
                         head_df = Pitch.find_note_head(cur_staff_note_head, row["x1"], pitch_y_top, row["x2"], pitch_y_bottom)
                         print("음표탐지시도 완료")
@@ -257,27 +351,61 @@ class MakeScore:
                             n = Pitch.find_pitch_from_y(cur_staff_df, head, staff_lines_global, measiter)
                             if isinstance(n, note.Note):
                                 pitches.append(n)
-                        if pitches:
-                            #midi_list = [note_obj.pitch.midi for note_obj in pitches]
-                            
-                            c = chord.Chord([n.pitch for n in pitches])
+                        if pitches:                            
+                            c.pitches = [n.pitch for n in pitches]
                             c.duration.quarterLength = duration
                             for i, note_obj in enumerate(pitches):
                                 if hasattr(note_obj, "accidental") and note_obj.accidental is not None and note_obj.accidental.displayStatus:
                                     c.notes[i].accidental = note_obj.accidental
                                     c.notes[i].accidental.displayStatus = True
 
-                            #c = chord.Chord(pitches)         # pitch 리스트로 코드 생성
-                            #c.duration.quarterLength = duration  # 미리 계산한 duration 할당
+                            # 가사 확인
+                            lyrics_list = TextProcesser.find_text_list(cur_lyrics_df, row["x1"], row["x2"])
+
+                            lyrics_data = []
+                            for _, lyric in lyrics_list.iterrows():
+                                x1, y1, x2, y2 = int(lyric["x1"]), int(lyric["y1"]), int(lyric["x2"]), int(lyric["y2"])
+                                pad_x = lyric["width"] * 0
+                                pad_y = lyric["height"] * 0 
+                                y_max, x_max = vis.shape[:2]
+                                crop_x1 = max(x1-pad_x,0)
+                                crop_x2 = min(x2+pad_x,x_max)
+                                crop_y1 = max(y1-pad_y,0)
+                                crop_y2 = min(y2+pad_y,y_max)
+                                lyrics_crop = vis[int(crop_y1):int(crop_y2), int(crop_x1):int(crop_x2)]
+                                crop_pil = Image.fromarray(cv2.cvtColor(lyrics_crop, cv2.COLOR_BGR2RGB))
+                                # OCR 수행
+                                text = TextProcesser.detect_text(crop_pil)
+                                # 결과 저장
+                                lyrics_data.append(text)
+                            for i, lyric in enumerate(lyrics_data):
+                                print(f"탐지된 가사: {lyric}")
+                                lyric_obj = note.Lyric()
+                                lyric_obj.text = lyric
+                                lyric_obj.number = i + 1
+                                #c.notes[0].lyrics.append(lyric_obj)
+                                c.addLyric(lyric)
                             m.append(c)
                             print(c)
 
+                    elif cls in ["measure", "measure_double", "measure_final"]:
+                        if cls == "measure_double":
+                          m.rightBarline = bar.Barline("light-light")
+                        elif cls == "measure_final":
+                          m.rightBarline = bar.Barline("light-heavy") 
+
+                        part.append(m)
+                        measurenum += 1
+                        m = stream.Measure(number=measurenum)
+                        measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
+                    
+                    """
                     elif cls in ["measure", "double_measure"]:
                         part.append(m)
                         measurenum += 1
                         m = stream.Measure(number=measurenum)
                         measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
-
+                    """
 
 
         part.append(m)
@@ -289,20 +417,30 @@ class MakeScore:
 
     # 키를 변환하는 함수 
     # Score 객체와 변환할 값을 정수로 받아서 키를 변환
-    # 현재는 -2, -1, 1, 2 만 받음 
+    # 범위는 -7 ~ +7까지지
     @staticmethod
-    def change_key(score, diff): # -2 -1 1 1 3 4 
-        if diff > 2 or diff < -2:
+    def change_key(score, diff): 
+        if diff > 7 or diff < -7:
             return score
         
         if diff == 0:
             return score
         else:
             change = {
+                -7: "-P5",
+                -6: "-D5",
+                -5: "-P4",
+                -4: "-M3",
+                -3: "-m3",
                 -2: "-M2",
                 -1: "-m2",
                 1: "m2",
-                2: "M2"
+                2: "M2",
+                3: "m3",
+                4: "M3",
+                5: "P4",
+                6: "D5",
+                7: "P5"
             }
             interval_str  = change[diff]
             intv = interval.Interval(interval_str)
