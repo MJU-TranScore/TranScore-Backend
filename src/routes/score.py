@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 import os
-import uuid
 import cv2
+import subprocess
+import platform  # ✅ 운영체제 확인용
+
 from ML.src.makexml.MakeScore import MakeScore
 from src.services.score_service import save_score_to_db, get_score, delete_score
 
@@ -28,7 +30,7 @@ def upload_score_route():
         description: 업로드 및 인식 성공
         examples:
           application/json:
-            score_id: "123e4567-e89b-12d3-a456-426614174000"
+            score_id: 1
             message: "Score uploaded and recognized successfully"
       400:
         description: 파일 없음
@@ -40,6 +42,7 @@ def upload_score_route():
         return jsonify({'error': 'No file uploaded'}), 400
 
     try:
+        # 업로드 디렉토리 생성
         upload_dir = 'uploaded_scores'
         os.makedirs(upload_dir, exist_ok=True)
 
@@ -47,25 +50,35 @@ def upload_score_route():
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
+        # 이미지 처리 및 악보 분석
         img = cv2.imread(file_path, cv2.IMREAD_COLOR)
         img_list = [img]
         score = MakeScore.make_score(img_list)
 
-        result_id = str(uuid.uuid4())
+        # 변환 결과 디렉토리 설정
         convert_dir = 'convert_result'
         os.makedirs(convert_dir, exist_ok=True)
 
-        xml_path = os.path.join(convert_dir, result_id + '.xml')
-        pdf_path = os.path.join(convert_dir, result_id + '.pdf')
-        MakeScore.score_to_xml(score, result_id)
+        # 일단 임시 UUID 기반 파일명 생성 (실제 id로 나중에 덮어씀)
+        temp_id = os.urandom(4).hex()
+        xml_path = os.path.join(convert_dir, temp_id + '.xml')
+        pdf_path = os.path.join(convert_dir, temp_id + '.pdf')
+        MakeScore.score_to_xml(score, temp_id)
 
-        mscore_path = "squashfs-root/bin/mscore4portable"
-        os.system(f'{mscore_path} {xml_path} -o {pdf_path}')
+        # 운영체제에 따라 MuseScore 실행 경로 설정
+        if platform.system() == "Windows":
+            mscore_path = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
+        else:
+            mscore_path = os.path.join("squashfs-root", "mscore4portable")
 
-        save_score_to_db(result_id, filename, xml_path, pdf_path)
+        print("실행 명령어 확인:", [mscore_path, xml_path, "-o", pdf_path])
+        subprocess.run([mscore_path, xml_path, "-o", pdf_path], check=True)
+
+        # DB에 저장 후 자동 생성된 score_id를 받음
+        score_id = save_score_to_db(filename, xml_path, pdf_path)
 
         return jsonify({
-            'score_id': result_id,
+            'score_id': score_id,
             'message': 'Score uploaded and recognized successfully'
         }), 201
 
@@ -73,7 +86,7 @@ def upload_score_route():
         return jsonify({'error': str(e)}), 500
 
 
-@score_bp.route('/score/<string:score_id>', methods=['GET'])
+@score_bp.route('/score/<int:score_id>', methods=['GET'])
 def get_score_route(score_id):
     """
     악보 정보 조회 API
@@ -83,7 +96,7 @@ def get_score_route(score_id):
     parameters:
       - name: score_id
         in: path
-        type: string
+        type: integer
         required: true
         description: 조회할 악보 ID
     responses:
@@ -91,10 +104,10 @@ def get_score_route(score_id):
         description: 조회 성공
         examples:
           application/json:
-            score_id: "abc123"
+            score_id: 1
             original_filename: "gomsong.png"
-            xml_path: "convert_result/abc123.xml"
-            pdf_path: "convert_result/abc123.pdf"
+            xml_path: "convert_result/1.xml"
+            pdf_path: "convert_result/1.pdf"
             created_at: "2025-05-11T13:00:00"
       404:
         description: 악보를 찾을 수 없음
@@ -106,7 +119,7 @@ def get_score_route(score_id):
         return jsonify({'error': 'Score not found'}), 404
 
 
-@score_bp.route('/score/<string:score_id>', methods=['DELETE'])
+@score_bp.route('/score/<int:score_id>', methods=['DELETE'])
 def delete_score_route(score_id):
     """
     악보 삭제 API
@@ -116,7 +129,7 @@ def delete_score_route(score_id):
     parameters:
       - name: score_id
         in: path
-        type: string
+        type: integer
         required: true
         description: 삭제할 악보 ID
     responses:
