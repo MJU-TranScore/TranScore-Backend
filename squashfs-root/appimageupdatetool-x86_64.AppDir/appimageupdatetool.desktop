@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=appimageupdatetool
+Type=Application
+Terminal=true
+Icon=appimage
+Exec=appimageupdatetool
+Categories=Utility;
+X-AppImage-Version=234-98633fe

@@ -10,13 +10,15 @@ from src.models.score import Score
 from src.models.result import Result  # ✅ 통합된 Result 모델
 from ML.src.makexml.MakeScore import MakeScore
 
-# OS별 실행 경로 설정
+# ✅ OS별 실행 경로 설정
 if platform.system() == "Windows":
     FFMPEG_CMD = r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
     TIMIDITY_CMD = "timidity"
+    MSCORE_CMD = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
 else:
     FFMPEG_CMD = "ffmpeg"
     TIMIDITY_CMD = "timidity"
+    MSCORE_CMD = os.path.join("squashfs-root", "mscore4portable")
 
 def perform_transpose(score: Score, shift: int) -> int:
     """
@@ -38,8 +40,8 @@ def perform_transpose(score: Score, shift: int) -> int:
 
     MakeScore.score_to_xml(transposed_score, result_id)
 
-    mscore_path = "../squashfs-root/bin/mscore4portable"
-    subprocess.run([mscore_path, xml_path, "-o", pdf_path])
+    print("[Transpose] 실행 명령어:", [MSCORE_CMD, xml_path, "-o", pdf_path])
+    subprocess.run([MSCORE_CMD, xml_path, "-o", pdf_path], check=True)
 
     result = Result(
         score_id=score.id,
@@ -80,8 +82,8 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> int:
     mf.write()
     mf.close()
 
-    subprocess.run([TIMIDITY_CMD, midi_path, "-Ow", "-o", wav_path])
-    subprocess.run([FFMPEG_CMD, "-i", wav_path, mp3_path])
+    subprocess.run([TIMIDITY_CMD, midi_path, "-Ow", "-o", wav_path], check=True)
+    subprocess.run([FFMPEG_CMD, "-i", wav_path, mp3_path], check=True)
     os.remove(wav_path)
 
     result = Result(

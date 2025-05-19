@@ -75,7 +75,7 @@ def transpose_preview_route():
         return jsonify({'error': str(e)}), 400
 
 
-@transform_bp.route('/score/<string:score_id>/transpose', methods=['POST'])
+@transform_bp.route('/score/<int:score_id>/transpose', methods=['POST'])
 def transform_transpose_route(score_id):
     """
     키 변경 수행 API
@@ -88,7 +88,7 @@ def transform_transpose_route(score_id):
         name: score_id
         required: true
         schema:
-          type: string
+          type: integer
         description: 변환할 대상 악보의 ID
       - in: body
         name: body
@@ -141,7 +141,7 @@ def transform_transpose_route(score_id):
     }), 201
 
 
-@transform_bp.route('/score/<string:score_id>/melody', methods=['POST'])
+@transform_bp.route('/score/<int:score_id>/melody', methods=['POST'])
 def melody_extract_route(score_id):
     """
     멜로디 추출 API
@@ -154,7 +154,7 @@ def melody_extract_route(score_id):
         name: score_id
         required: true
         schema:
-          type: string
+          type: integer
         description: 멜로디를 추출할 대상 악보의 ID
       - in: body
         name: body
