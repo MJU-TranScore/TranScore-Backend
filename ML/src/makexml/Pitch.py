@@ -39,67 +39,66 @@ class Pitch:
         # 기준 생성
         margin = gap * margin_ratio
         positions = [
-            (18, L1-5*gap+margin, L1-5*gap-margin),
-            (17, L1-4*gap+margin, L1-4*gap-margin),
-            (16, L1-3*gap+margin, L1-3*gap-margin),
-            (15, L1-2*gap+margin, L1-2*gap-margin),
-            (14, L1-1*gap+margin, L1-1*gap-margin),
-            (13, L1+margin, L1-margin),
-            (12, L1+gap+margin, L1+gap-margin),
-            (11, L2+margin, L2-margin),
-            (10, L2+gap+margin, L2+gap-margin),
-            (9, L3+margin, L3-margin),
-            (8, L3+gap+margin, L3+gap-margin),
-            (7, L4+margin, L4-margin),
-            (6, L4+gap+margin, L4+gap-margin),
-            (5, L5+margin, L5-margin),
-            (4, L5+1*gap+margin, L5+1*gap-margin),
-            (3, L5+2*gap+margin, L5+2*gap-margin),
-            (2, L5+3*gap+margin, L5+3*gap-margin),
-            (1, L5+4*gap+margin, L5+4*gap-margin),
-            (0, L5+5*gap+margin, L5+5*gap-margin),
+            (18, L1-5*gap),
+            (17, L1-4*gap),
+            (16, L1-3*gap),
+            (15, L1-2*gap),
+            (14, L1-1*gap),
+            (13, L1),
+            (12, L1+gap),
+            (11, L2),
+            (10, L2+gap),
+            (9, L3),
+            (8, L3+gap),
+            (7, L4),
+            (6, L4+gap),
+            (5, L5),
+            (4, L5+1*gap),
+            (3, L5+2*gap),
+            (2, L5+3*gap),
+            (1, L5+4*gap),
+            (0, L5+5*gap),
         ]
+        # 가장 가까운 위치 계산
+        pitch_centers = [(pitch, position) for pitch, position in positions]
+        pitch_idx, closest_y = min(pitch_centers, key=lambda p: abs(p[1] - y_center))
+
+        n = note.Note()
+
+        # 임시표 처리
         accidental_df = staff_df[staff_df["class_name"].isin(ACCIDENTAL_CLASSES.keys())].copy()
-        for pitch, low, high in positions:
-            #print(low, y_center, high)
-            if low > y_center > high:
-                n = note.Note()
+        for _, acc in accidental_df.iterrows():
+            ax_target = acc["x2"] - acc["width"] * 0.2
+            ay_center = acc["y_center"]
 
-                # 임시표 처리
-                for _, acc in accidental_df.iterrows():
-                    ax_target = acc["x2"] - acc["width"] * 0.2
-                    ay_center = acc["y_center"]
+            # y조건: 임시표가 음표 머리 영역 y 안에 있어야 함
+            if not (y1 <= ay_center <= y2):
+                continue
 
-                    # y조건: 임시표가 음표 머리 영역 y 안에 있어야 함
-                    if not (y1 <= ay_center <= y2):
-                        continue
-
-                    # x조건: 임시표의 x1, x2,의 5/4 지점이 음표 머리 영역 안에 있어야됨.
-                    head_width = x2 - x1
-                    threshold_x = x1 - 0.2 * head_width
-                    if x1 <= ax_target <= x2:
-                        # pitch 보정
-                        adjust = ACCIDENTAL_CLASSES[acc["class_name"]]
-                        if adjust == 1:
-                            interval_list[pitch] += 1
-                            n.pitch.midi = interval_list[pitch]
-                            n.accidental = pitch.Accidental('sharp')
-                        elif adjust == -1:
-                            interval_list[pitch] -= 1
-                            n.pitch.midi = interval_list[pitch]
-                            n.accidental = pitch.Accidental('flat')
-                        else:
-                            temp_interval = IntervalPreset.get_interval_list(measiter.cur_clef, 0)
-                            interval_list[pitch] = temp_interval[pitch]
-                            n.pitch.midi = interval_list[pitch]
-                            n.accidental = pitch.Accidental('natural')
-                        return n
-                n.pitch.midi = interval_list[pitch]
-                n.accidental = None
+            # x조건: 임시표가 음표 머리 옆에 있을 경우
+            head_width = x2 - x1
+            if x1 <= ax_target <= x2:
+                adjust = ACCIDENTAL_CLASSES[acc["class_name"]]
+                if adjust == 1:
+                    interval_list[pitch_idx] += 1
+                    n.pitch.midi = interval_list[pitch_idx]
+                    n.accidental = note.Accidental('sharp')
+                elif adjust == -1:
+                    interval_list[pitch_idx] -= 1
+                    n.pitch.midi = interval_list[pitch_idx]
+                    n.accidental = note.Accidental('flat')
+                else:
+                    temp_interval = IntervalPreset.get_interval_list(measiter.cur_clef, 0)
+                    interval_list[pitch_idx] = temp_interval[pitch_idx]
+                    n.pitch.midi = interval_list[pitch_idx]
+                    n.accidental = note.Accidental('natural')
                 return n
 
-        return None  # 범위 밖이면 None
-    
+        n.pitch.midi = interval_list[pitch_idx]
+        n.accidental = None
+        return n
+
+
     # 음표 영역 안에 dot_note_head의 중심좌표가 있는지 확인하는 함수
     @staticmethod 
     def is_dotted_note(note_box, staff_df):
@@ -127,7 +126,7 @@ class Pitch:
             (head_fd["x_center"] >= x1) & (head_fd["x_center"] <= x2) &
             (head_fd["y_center"] >= y1) & (head_fd["y_center"] <= y2)
         ].copy()
-        print(hits)
+        #print(hits)
         if hits.empty:
             return pd.DataFrame(columns=head_fd.columns)
         x_base = hits["x_center"].min()
