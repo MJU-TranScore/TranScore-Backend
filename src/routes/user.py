@@ -4,8 +4,29 @@ from src.models import db, User
 from src.utils.jwt_util import decode_token
 from flasgger import swag_from
 import os
+import uuid
 
 user_bp = Blueprint('user', __name__, url_prefix='/user')
+
+UPLOAD_FOLDER = 'static/profile_images'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# ✅ 공통 인증 함수
+def get_current_user():
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None, jsonify({"error": "Missing or invalid Authorization header"}), 401
+
+    token = auth_header.split(" ")[1]
+    payload, error = decode_token(token)
+    if error:
+        return None, jsonify({"error": error}), 401
+
+    user = User.query.get(payload["user_id"])
+    if not user:
+        return None, jsonify({"error": "User not found"}), 404
+
+    return user, None, None
 
 
 @user_bp.route('/me', methods=['GET'])
@@ -34,18 +55,9 @@ user_bp = Blueprint('user', __name__, url_prefix='/user')
     }
 })
 def get_my_info():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid Authorization header"}), 401
-
-    token = auth_header.split(" ")[1]
-    payload, error = decode_token(token)
-    if error:
-        return jsonify({"error": error}), 401
-
-    user = User.query.get(payload["user_id"])
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    user, error_resp, status = get_current_user()
+    if error_resp:
+        return error_resp, status
 
     return jsonify({
         "user_id": user.id,
@@ -91,21 +103,10 @@ def get_my_info():
         404: {'description': 'User not found'}
     }
 })
-
-
 def update_my_info():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid Authorization header"}), 401
-
-    token = auth_header.split(" ")[1]
-    payload, error = decode_token(token)
-    if error:
-        return jsonify({"error": error}), 401
-
-    user = User.query.get(payload["user_id"])
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    user, error_resp, status = get_current_user()
+    if error_resp:
+        return error_resp, status
 
     data = request.get_json()
     new_nickname = data.get("nickname")
@@ -120,10 +121,6 @@ def update_my_info():
         "nickname": user.nickname
     }), 200
 
-
-
-UPLOAD_FOLDER = 'static/profile_images'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @user_bp.route("/me/profile-image", methods=["PATCH"])
 @swag_from({
@@ -156,20 +153,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         401: {'description': '유효하지 않은 토큰'}
     }
 })
-
 def update_profile_image():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid Authorization header"}), 401
-
-    token = auth_header.split(" ")[1]
-    payload, error = decode_token(token)
-    if error:
-        return jsonify({"error": error}), 401
-
-    user = User.query.get(payload["user_id"])
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    user, error_resp, status = get_current_user()
+    if error_resp:
+        return error_resp, status
 
     if 'profile_image' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -178,8 +165,8 @@ def update_profile_image():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
-    filename = secure_filename(file.filename)
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
+    file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
     file.save(file_path)
 
     user.profile_image = file_path
@@ -190,10 +177,11 @@ def update_profile_image():
         "nickname": user.nickname,
         "profile_image": user.profile_image
     }), 200
-    
+
+
 @user_bp.route("/me", methods=["DELETE"])
 @swag_from({
-    'summary': '회원 탈회',
+    'summary': '회원 탈퇴',
     'tags': ['user'],
     'security': [{'Bearer': []}],
     'responses': {
@@ -211,27 +199,15 @@ def update_profile_image():
         404: {'description': '사용자 없음'}
     }
 })
-
-
-
 def delete_my_account():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid Authorization header"}), 401
-
-    token = auth_header.split(" ")[1]
-    payload, error = decode_token(token)
-    if error:
-        return jsonify({"error": error}), 401
-
-    user = User.query.get(payload["user_id"])
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    user, error_resp, status = get_current_user()
+    if error_resp:
+        return error_resp, status
 
     db.session.delete(user)
     db.session.commit()
 
     return jsonify({
-        "user_id": payload["user_id"],
+        "user_id": user.id,
         "message": "User successfully deleted"
     }), 200

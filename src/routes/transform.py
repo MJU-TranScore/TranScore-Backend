@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.utils.transpose_helper import transpose_key
 from src.models.score import Score
 from src.models.result import Result
-from src.services.transform_service import perform_transpose, extract_melody
+from src.services.transform_service import perform_transpose, extract_melody, extract_lyrics
 
 transform_bp = Blueprint('transform', __name__)
 
@@ -48,12 +48,6 @@ def transpose_preview_route():
               example: "F → E (shift -1)"
       400:
         description: 잘못된 요청
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Invalid key: Z"
     """
     data = request.get_json()
     current_key = data.get('current_key')
@@ -116,12 +110,6 @@ def transform_transpose_route(score_id):
               example: "Transpose completed successfully"
       404:
         description: 악보 ID를 찾을 수 없음
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Score not found"
     """
     score = Score.query.get(score_id)
     if not score:
@@ -139,6 +127,7 @@ def transform_transpose_route(score_id):
         'result_id': result_id,
         'message': 'Transpose completed successfully'
     }), 201
+
 
 @transform_bp.route('/score/<int:score_id>/lyrics', methods=['POST'])
 def lyrics_extract_route(score_id):
@@ -172,29 +161,21 @@ def lyrics_extract_route(score_id):
               example: "Lyrics extracted successfully"
       404:
         description: 악보 ID를 찾을 수 없음
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Score not found"
     """
     score = Score.query.get(score_id)
     if not score:
         return jsonify({'error': 'Score not found'}), 404
 
-    from src.services.transform_service import extract_lyrics
     result_id = extract_lyrics(score)
-
     result = Result.query.get(result_id)
-    text_path = result.text_path if result else f"convert_result/{result_id}.txt"
+    if not result:
+        return jsonify({"error": "Result not found"}), 500
 
     return jsonify({
         'result_id': result_id,
-        'text_path': text_path,
+        'text_path': result.download_path,
         'message': 'Lyrics extracted successfully'
     }), 200
-
 
 
 @transform_bp.route('/score/<int:score_id>/melody', methods=['POST'])
@@ -246,12 +227,6 @@ def melody_extract_route(score_id):
               example: "Melody extracted from measure 1 to 8"
       404:
         description: 악보 ID를 찾을 수 없음
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Score not found"
     """
     data = request.get_json()
     start = data.get('start_measure')
@@ -262,12 +237,12 @@ def melody_extract_route(score_id):
         return jsonify({'error': 'Score not found'}), 404
 
     result_id = extract_melody(score, start, end)
-
     result = Result.query.get(result_id)
-    mp3_path = result.audio_path if result else f"convert_result/{result_id}.mp3"
+    if not result:
+        return jsonify({"error": "Result not found"}), 500
 
     return jsonify({
         'result_id': result_id,
-        'mp3_path': mp3_path,
+        'mp3_path': result.audio_path,
         'message': f'Melody extracted from measure {start} to {end}'
     }), 200

@@ -7,10 +7,9 @@ import cv2
 from music21 import midi, stream, note
 from src.models.db import db
 from src.models.score import Score
-from src.models.result import Result  # ✅ 통합된 Result 모델
+from src.models.result import Result
 from ML.src.makexml.MakeScore import MakeScore
 
-# ✅ OS별 실행 경로 설정
 if platform.system() == "Windows":
     FFMPEG_CMD = r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe"
     TIMIDITY_CMD = "timidity"
@@ -20,11 +19,7 @@ else:
     TIMIDITY_CMD = "timidity"
     MSCORE_CMD = os.path.join("squashfs-root", "mscore4portable")
 
-
 def perform_transpose(score: Score, shift: int) -> int:
-    """
-    키 변경을 수행하고 결과 PDF를 생성해 Result 테이블에 저장
-    """
     image_path = os.path.join('uploaded_scores', score.original_filename)
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     img_list = [img]
@@ -41,7 +36,6 @@ def perform_transpose(score: Score, shift: int) -> int:
 
     MakeScore.score_to_xml(transposed_score, result_id)
 
-    print("[Transpose] 실행 명령어:", [MSCORE_CMD, xml_path, "-o", pdf_path])
     subprocess.run([MSCORE_CMD, xml_path, "-o", pdf_path], check=True)
 
     result = Result(
@@ -54,11 +48,7 @@ def perform_transpose(score: Score, shift: int) -> int:
 
     return result.id
 
-
 def extract_melody(score: Score, start_measure: int, end_measure: int) -> int:
-    """
-    악보에서 특정 마디 범위의 멜로디를 추출하여 MP3 파일로 저장 후 Result 테이블에 저장
-    """
     image_path = os.path.join('uploaded_scores', score.original_filename)
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     img_list = [img]
@@ -98,11 +88,7 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> int:
 
     return result.id
 
-
 def extract_lyrics(score: Score) -> int:
-    """
-    악보에서 가사를 추출하여 텍스트로 저장하고 Result 테이블에 저장
-    """
     image_path = os.path.join('uploaded_scores', score.original_filename)
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     if img is None:
@@ -111,15 +97,14 @@ def extract_lyrics(score: Score) -> int:
     img_list = [img]
     score_obj = MakeScore.make_score(img_list)
 
-    # 가사 추출
     lyrics = []
     for el in score_obj.recurse():
         if isinstance(el, note.Note) and el.lyric:
             lyrics.append(el.lyric.strip())
 
     lyrics_text = "\n".join(filter(None, lyrics)).strip()
-    if not lyrics_text:
-        raise ValueError("추출된 가사가 없습니다")
+    # if not lyrics_text:
+    #     raise ValueError("추출된 가사가 없습니다")  # 예외 제거
 
     result_id = str(uuid.uuid4())
     convert_dir = 'convert_result'
@@ -132,8 +117,8 @@ def extract_lyrics(score: Score) -> int:
     result = Result(
         score_id=score.id,
         type='lyrics',
-        text_path=text_path,         # 다운로드용
-        text_content=lyrics_text     # ✅ API 조회용
+        download_path=text_path,
+        text_content=lyrics_text
     )
     db.session.add(result)
     db.session.commit()
