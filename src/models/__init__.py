@@ -2,3 +2,8 @@ from .db import db
 from .user import User
 from .score import Score
 from .result import Result
+from .resultScore_save import ResultScoreSave
+from .uploadScore_save import UploadScoreSave 
+from .transform import TransformTranspose
+from .transform import TransformLyrics
+from .transform import TransformMelody
