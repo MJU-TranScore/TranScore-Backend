@@ -9,16 +9,20 @@ def normalize_path(path):
 # 5-1: 키 변경된 악보 결과 이미지
 def get_transpose_image(result_id):
     result = Result.query.get(result_id)
+    if not result or result.type != 'transpose':
+        raise FileNotFoundError("키 변경 악보 이미지 결과를 찾을 수 없습니다")
     image_path = normalize_path(result.image_path)
-    if not result or result.type != 'transpose' or not image_path or not os.path.exists(image_path):
+    if not image_path or not os.path.exists(image_path):
         raise FileNotFoundError("키 변경 악보 이미지 결과를 찾을 수 없습니다")
     return send_file(image_path, mimetype='image/png')
 
 # 키 변경된 PDF 파일 다운로드
 def download_transpose_file(result_id):
     result = Result.query.get(result_id)
+    if not result or result.type != 'transpose':
+        raise FileNotFoundError("키 변경 악보 다운로드 파일을 찾을 수 없습니다")
     download_path = normalize_path(result.download_path)
-    if not result or result.type != 'transpose' or not download_path or not os.path.exists(download_path):
+    if not download_path or not os.path.exists(download_path):
         raise FileNotFoundError("키 변경 악보 다운로드 파일을 찾을 수 없습니다")
     return send_file(download_path, as_attachment=True)
 
@@ -32,8 +36,10 @@ def get_lyrics_text(result_id):
 # 가사 다운로드 파일
 def download_lyrics_file(result_id):
     result = Result.query.get(result_id)
+    if not result or result.type != 'lyrics':
+        raise FileNotFoundError("가사 다운로드 파일을 찾을 수 없습니다")
     download_path = normalize_path(result.download_path)
-    if not result or result.type != 'lyrics' or not download_path or not os.path.exists(download_path):
+    if not download_path or not os.path.exists(download_path):
         raise FileNotFoundError("가사 다운로드 파일을 찾을 수 없습니다")
     return send_file(download_path, as_attachment=True)
 
@@ -47,7 +53,9 @@ def get_melody_meta_info(result_id):
 # 멜로디 오디오 MP3
 def get_melody_audio(result_id):
     result = Result.query.get(result_id)
+    if not result or result.type != 'melody':
+        raise FileNotFoundError("멜로디 오디오 파일을 찾을 수 없습니다")
     audio_path = normalize_path(result.audio_path)
-    if not result or result.type != 'melody' or not audio_path or not os.path.exists(audio_path):
+    if not audio_path or not os.path.exists(audio_path):
         raise FileNotFoundError("멜로디 오디오 파일을 찾을 수 없습니다")
     return send_file(audio_path, mimetype='audio/mpeg', as_attachment=True)

@@ -1,9 +1,9 @@
 import os
 import requests
 from flask import Blueprint, redirect, request, jsonify
-from src.config import Config
-from src.services.auth_service import handle_kakao_login, refresh_access_token 
 from flasgger import swag_from
+from src.config import Config
+from src.services.auth_service import handle_kakao_login, refresh_access_token
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -79,7 +79,9 @@ def kakao_callback():
                 'type': 'object',
                 'properties': {
                     'access_token': {'type': 'string'},
-                    'refresh_token': {'type': 'string'}
+                    'refresh_token': {'type': 'string'},
+                    'user_id': {'type': 'integer'},
+                    'nickname': {'type': 'string'}
                 }
             }
         },
@@ -88,23 +90,14 @@ def kakao_callback():
         }
     }
 })
-
 def kakao_token():
     try:
-        # 요청 내용 디버깅 로그
-        print("🔥 /auth/kakao/token 요청 도착")
-        print("🔥 REQUEST HEADERS:", dict(request.headers))
-        print("🔥 RAW BODY:", request.get_data(as_text=True))
-        
-        # JSON이든 form이든 유연하게 처리
         data = request.get_json(silent=True) or request.form or request.values
         code = data.get('code') if data else None
 
         if not code:
-            print("❌ No code provided")
             return jsonify({'error': 'No code provided'}), 400
 
-        # 카카오 토큰 요청
         token_url = "https://kauth.kakao.com/oauth/token"
         token_data = {
             'grant_type': 'authorization_code',
@@ -113,15 +106,11 @@ def kakao_token():
             'code': code,
         }
         token_response = requests.post(token_url, data=token_data)
-        print("🔐 Kakao token response:", token_response.status_code, token_response.text)
-
         token_json = token_response.json()
         access_token = token_json.get('access_token')
         if not access_token:
-            print("❌ Failed to get access token")
             return jsonify({'error': 'Failed to get Kakao access token'}), 400
 
-        # 유저 정보 요청
         user_info_url = "https://kapi.kakao.com/v2/user/me"
         headers = {"Authorization": f"Bearer {access_token}"}
         user_info_response = requests.get(user_info_url, headers=headers)
@@ -135,15 +124,11 @@ def kakao_token():
         return jsonify(result), 200
 
     except Exception as e:
-        print("❌ Unexpected error in kakao_token:", str(e))
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
-
-
 
 
 @auth_bp.route('/refresh', methods=['POST'])
 def refresh():
-    
     """
     JWT 리프레시 토큰을 이용해 액세스 토큰 재발급
     ---
@@ -155,6 +140,8 @@ def refresh():
         application/json:
           schema:
             type: object
+            required:
+              - refresh_token
             properties:
               refresh_token:
                 type: string
@@ -162,15 +149,22 @@ def refresh():
     responses:
       200:
         description: 액세스 토큰 재발급 성공
-        schema:
-          type: object
-          properties:
-            access_token:
-              type: string
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                  example: "new.access.token"
+                refresh_token:
+                  type: string
+                  example: "original.refresh.token"
+      400:
+        description: 리프레시 토큰 누락
       401:
         description: 토큰 만료 또는 유효하지 않음
     """
-    
     data = request.get_json()
     refresh_token = data.get('refresh_token')
 
@@ -181,7 +175,11 @@ def refresh():
     if error:
         return jsonify({"error": error}), 401
 
-    return jsonify({"access_token": new_access_token}), 200
+    return jsonify({
+        "access_token": new_access_token,
+        "refresh_token": refresh_token
+    }), 200
+
 
 @auth_bp.route("/test-token", methods=["POST"])
 def issue_test_token():
@@ -191,28 +189,36 @@ def issue_test_token():
     tags:
       - auth
     summary: 테스트용 JWT 토큰 발급
-    description: 테스트용 유저 정보를 기반으로 accessToken, refreshToken을 발급합니다.
+    description: 테스트용 유저 정보를 기반으로 access_token, refresh_token을 자동 발급합니다.
     responses:
       200:
         description: 토큰 발급 성공
-        schema:
-          type: object
-          properties:
-            access_token:
-              type: string
-              description: "Access Token"
-            refresh_token:
-              type: string
-              description: "Refresh Token"
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                  description: "Access Token"
+                refresh_token:
+                  type: string
+                  description: "Refresh Token"
+                user_id:
+                  type: integer
+                  example: 1
+                nickname:
+                  type: string
+                  example: "테스트유저"
     """
-    # 테스트용 고정 유저 정보
     kakao_id = "test_kakao_12345"
     nickname = "테스트유저"
     profile_image = ""
 
     result = handle_kakao_login(kakao_id, nickname, profile_image)
     return jsonify(result), 200
-  
+
+
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
     """
@@ -225,11 +231,13 @@ def logout():
     responses:
       200:
         description: 로그아웃 성공
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "로그아웃 완료"
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "로그아웃 완료"
     """
     return jsonify({"message": "로그아웃 완료"}), 200
