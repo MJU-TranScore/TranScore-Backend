@@ -1,18 +1,18 @@
 from flask import Flask
 from flasgger import Swagger
+from flask_cors import CORS
 from src.config import Config
 from src.models import db
-from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
 
-    # ✅ CORS 설정: withCredentials 대응 + 모든 라우트에 확실하게 적용
+    # ✅ 전체 앱에 기본 CORS 설정 (프리플라이트 요청 허용)
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     app.config.from_object(Config)
 
-    # Swagger 초기화
+    # ✅ Swagger 초기화
     swagger_template = {
         "swagger": "2.0",
         "info": {
@@ -39,10 +39,8 @@ def create_app():
 
     db.init_app(app)
 
-    # 블루프린트 등록
+    # ✅ 라우트 등록 및 Blueprint 별도 CORS 적용
     from src.routes.index import index_bp
-    app.register_blueprint(index_bp)
-
     from src.routes.auth import auth_bp
     from src.routes.user import user_bp
     from src.routes.score import score_bp
@@ -51,12 +49,9 @@ def create_app():
     from src.routes.mypage_upload_score import upload_score_bp
     from src.routes.mypage_result_score import result_score_bp
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(user_bp)
-    app.register_blueprint(score_bp)
-    app.register_blueprint(transform_bp)
-    app.register_blueprint(result_bp)
-    app.register_blueprint(upload_score_bp)
-    app.register_blueprint(result_score_bp)
+    # Blueprint 별 CORS 적용
+    for bp in [index_bp, auth_bp, user_bp, score_bp, transform_bp, result_bp, upload_score_bp, result_score_bp]:
+        CORS(bp, origins="http://localhost:5173", supports_credentials=True)
+        app.register_blueprint(bp)
 
     return app
