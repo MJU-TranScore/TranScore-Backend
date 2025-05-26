@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 import cv2
 import subprocess
-import platform  # ✅ 운영체제 확인용
+import platform  # 운영체제 확인용
 
 from ML.src.makexml.MakeScore import MakeScore
 from src.services.score_service import save_score_to_db, get_score, delete_score
@@ -31,7 +31,7 @@ def upload_score_route():
         examples:
           application/json:
             score_id: 1
-            message: "Score uploaded and recognized successfully"
+            message: Score uploaded and recognized successfully
       400:
         description: 파일 없음
       500:
@@ -42,7 +42,6 @@ def upload_score_route():
         return jsonify({'error': 'No file uploaded'}), 400
 
     try:
-        # 업로드 디렉토리 생성
         upload_dir = 'uploaded_scores'
         os.makedirs(upload_dir, exist_ok=True)
 
@@ -50,22 +49,18 @@ def upload_score_route():
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
-        # 이미지 처리 및 악보 분석
         img = cv2.imread(file_path, cv2.IMREAD_COLOR)
         img_list = [img]
         score = MakeScore.make_score(img_list)
 
-        # 변환 결과 디렉토리 설정
         convert_dir = 'convert_result'
         os.makedirs(convert_dir, exist_ok=True)
 
-        # 일단 임시 UUID 기반 파일명 생성 (실제 id로 나중에 덮어씀)
         temp_id = os.urandom(4).hex()
         xml_path = os.path.join(convert_dir, temp_id + '.xml')
         pdf_path = os.path.join(convert_dir, temp_id + '.pdf')
         MakeScore.score_to_xml(score, temp_id)
 
-        # 운영체제에 따라 MuseScore 실행 경로 설정
         if platform.system() == "Windows":
             mscore_path = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
         else:
@@ -74,7 +69,6 @@ def upload_score_route():
         print("실행 명령어 확인:", [mscore_path, xml_path, "-o", pdf_path])
         subprocess.run([mscore_path, xml_path, "-o", pdf_path], check=True)
 
-        # DB에 저장 후 자동 생성된 score_id를 받음
         score_id = save_score_to_db(filename, xml_path, pdf_path)
 
         return jsonify({
@@ -105,10 +99,10 @@ def get_score_route(score_id):
         examples:
           application/json:
             score_id: 1
-            original_filename: "gomsong.png"
-            xml_path: "convert_result/1.xml"
-            pdf_path: "convert_result/1.pdf"
-            created_at: "2025-05-11T13:00:00"
+            original_filename: gomsong.png
+            xml_path: convert_result/1.xml
+            pdf_path: convert_result/1.pdf
+            created_at: 2025-05-11T13:00:00
       404:
         description: 악보를 찾을 수 없음
     """
@@ -137,7 +131,7 @@ def delete_score_route(score_id):
         description: 삭제 성공
         examples:
           application/json:
-            message: "Score deleted"
+            message: Score deleted
       404:
         description: 악보를 찾을 수 없음
     """
