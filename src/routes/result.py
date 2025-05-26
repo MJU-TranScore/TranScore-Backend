@@ -11,13 +11,14 @@ from src.services.result_service import (
 
 result_bp = Blueprint('result', __name__, url_prefix='/result')
 
+
 # 5-1. 키 변경된 악보 결과
-@result_bp.route('/transpose/<int:result_id>/image', methods=['GET'])
+@result_bp.route('/transpose/<int:resultId>/image', methods=['GET'])
 @swag_from({
     'tags': ['Result - Transpose'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -29,18 +30,19 @@ result_bp = Blueprint('result', __name__, url_prefix='/result')
         404: {'description': '결과 없음'}
     }
 })
-def transpose_image(result_id):
+def transposeImage(resultId):
     try:
-        return get_transpose_image(result_id)
+        return get_transpose_image(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
 
-@result_bp.route('/transpose/<int:result_id>/download', methods=['GET'])
+
+@result_bp.route('/transpose/<int:resultId>/download', methods=['GET'])
 @swag_from({
     'tags': ['Result - Transpose'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -52,19 +54,20 @@ def transpose_image(result_id):
         404: {'description': '결과 없음'}
     }
 })
-def transpose_download(result_id):
+def transposeDownload(resultId):
     try:
-        return download_transpose_file(result_id)
+        return download_transpose_file(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
 
+
 # 5-2. 가사 추출 결과
-@result_bp.route('/lyrics/<int:result_id>/text', methods=['GET'])
+@result_bp.route('/lyrics/<int:resultId>/text', methods=['GET'])
 @swag_from({
     'tags': ['Result - Lyrics'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -76,18 +79,19 @@ def transpose_download(result_id):
         404: {'description': '결과 없음'}
     }
 })
-def lyrics_text(result_id):
+def lyricsText(resultId):
     try:
-        return get_lyrics_text(result_id)
+        return get_lyrics_text(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
 
-@result_bp.route('/lyrics/<int:result_id>/download', methods=['GET'])
+
+@result_bp.route('/lyrics/<int:resultId>/download', methods=['GET'])
 @swag_from({
     'tags': ['Result - Lyrics'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -99,19 +103,20 @@ def lyrics_text(result_id):
         404: {'description': '결과 없음'}
     }
 })
-def lyrics_download(result_id):
+def lyricsDownload(resultId):
     try:
-        return download_lyrics_file(result_id)
+        return download_lyrics_file(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
 
+
 # 5-3. 멜로디 추출 결과
-@result_bp.route('/melody/<int:result_id>/info', methods=['GET'])
+@result_bp.route('/melody/<int:resultId>/info', methods=['GET'])
 @swag_from({
     'tags': ['Result - Melody'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -123,18 +128,19 @@ def lyrics_download(result_id):
         404: {'description': '결과 없음'}
     }
 })
-def melody_info(result_id):
+def melodyInfo(resultId):
     try:
-        return get_melody_meta_info(result_id)
+        return get_melody_meta_info(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
 
-@result_bp.route('/melody/<int:result_id>/audio', methods=['GET'])
+
+@result_bp.route('/melody/<int:resultId>/audio', methods=['GET'])
 @swag_from({
     'tags': ['Result - Melody'],
     'parameters': [
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'type': 'integer',
             'required': True,
@@ -146,8 +152,8 @@ def melody_info(result_id):
         404: {'description': '결과 없음'}
     }
 })
-def melody_audio(result_id):
+def melodyAudio(resultId):
     try:
-        return get_melody_audio(result_id)
+        return get_melody_audio(resultId)
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404
