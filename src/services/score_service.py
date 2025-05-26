@@ -1,29 +1,29 @@
 from src.models.score import db, Score
 
-def save_score_to_db(filename, xml_path, pdf_path):
-    new_score = Score(
+def saveScoreToDb(filename, xmlPath, pdfPath):
+    newScore = Score(
         original_filename=filename,
-        xml_path=xml_path,
-        pdf_path=pdf_path
+        xml_path=xmlPath,
+        pdf_path=pdfPath
     )
-    db.session.add(new_score)
+    db.session.add(newScore)
     db.session.commit()
-    return new_score.id  # 새로 생성된 정수 ID를 반환
+    return newScore.id  # 새로 생성된 정수 ID를 반환
 
-def get_score(score_id):
-    score = Score.query.get(score_id)
+def getScore(scoreId):
+    score = Score.query.get(scoreId)
     if score:
         return {
-            'score_id': score.id,
-            'original_filename': score.original_filename,
-            'xml_path': score.xml_path,
-            'pdf_path': score.pdf_path,
-            'created_at': score.created_at.isoformat()
+            'scoreId': score.id,
+            'originalFilename': score.original_filename,
+            'xmlPath': score.xml_path,
+            'pdfPath': score.pdf_path,
+            'createdAt': score.created_at.isoformat()
         }
     return None
 
-def delete_score(score_id):
-    score = Score.query.get(score_id)
+def deleteScore(scoreId):
+    score = Score.query.get(scoreId)
     if score:
         db.session.delete(score)
         db.session.commit()

@@ -80,15 +80,15 @@ def upload_score_route():
         return jsonify({'error': str(e)}), 500
 
 
-@score_bp.route('/score/<int:score_id>', methods=['GET'])
-def get_score_route(score_id):
+@score_bp.route('/score/<int:scoreId>', methods=['GET'])
+def get_score_route(scoreId):
     """
     악보 정보 조회 API
     ---
     tags:
       - score
     parameters:
-      - name: score_id
+      - name: scoreId
         in: path
         type: integer
         required: true
@@ -106,22 +106,22 @@ def get_score_route(score_id):
       404:
         description: 악보를 찾을 수 없음
     """
-    result = get_score(score_id)
+    result = get_score(scoreId)
     if result:
         return jsonify(result), 200
     else:
         return jsonify({'error': 'Score not found'}), 404
 
 
-@score_bp.route('/score/<int:score_id>', methods=['DELETE'])
-def delete_score_route(score_id):
+@score_bp.route('/score/<int:scoreId>', methods=['DELETE'])
+def delete_score_route(scoreId):
     """
     악보 삭제 API
     ---
     tags:
       - score
     parameters:
-      - name: score_id
+      - name: scoreId
         in: path
         type: integer
         required: true
@@ -135,7 +135,7 @@ def delete_score_route(score_id):
       404:
         description: 악보를 찾을 수 없음
     """
-    success = delete_score(score_id)
+    success = delete_score(scoreId)
     if success:
         return jsonify({'message': 'Score deleted'}), 200
     else:
