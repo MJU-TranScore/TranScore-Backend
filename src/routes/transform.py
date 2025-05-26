@@ -6,8 +6,9 @@ from src.services.transform_service import perform_transpose, extract_melody, ex
 
 transform_bp = Blueprint('transform', __name__)
 
+
 @transform_bp.route('/transpose-preview', methods=['POST'])
-def transpose_preview_route():
+def transposePreviewRoute():
     """
     키 변경 미리보기 API
     ---
@@ -23,7 +24,7 @@ def transpose_preview_route():
         schema:
           type: object
           properties:
-            current_key:
+            currentKey:
               type: string
               example: "F"
               description: 현재 키
@@ -32,7 +33,7 @@ def transpose_preview_route():
               example: -1
               description: 변환할 반음 수
           required:
-            - current_key
+            - currentKey
             - shift
     responses:
       200:
@@ -40,7 +41,7 @@ def transpose_preview_route():
         schema:
           type: object
           properties:
-            transposed_key:
+            transposedKey:
               type: string
               example: "E"
             message:
@@ -50,27 +51,26 @@ def transpose_preview_route():
         description: 잘못된 요청
     """
     data = request.get_json()
-    current_key = data.get('current_key')
+    currentKey = data.get('currentKey')
     shift = data.get('shift')
 
-    if current_key is None or shift is None:
-        return jsonify({'error': 'current_key and shift are required'}), 400
+    if currentKey is None or shift is None:
+        return jsonify({'error': 'currentKey and shift are required'}), 400
 
     try:
         shift = int(shift)
-        transposed_key = transpose_key(current_key, shift)
-
+        transposedKey = transpose_key(currentKey, shift)
         return jsonify({
-            'transposed_key': transposed_key,
-            'message': f"{current_key.upper()} → {transposed_key} (shift {shift})"
+            'transposedKey': transposedKey,
+            'message': f"{currentKey.upper()} → {transposedKey} (shift {shift})"
         }), 200
 
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
 
 
-@transform_bp.route('/score/<int:score_id>/transpose', methods=['POST'])
-def transform_transpose_route(score_id):
+@transform_bp.route('/score/<int:scoreId>/transpose', methods=['POST'])
+def transformTransposeRoute(scoreId):
     """
     키 변경 수행 API
     ---
@@ -79,7 +79,7 @@ def transform_transpose_route(score_id):
     summary: 업로드된 악보를 지정된 반음 수만큼 키 변경하고 결과 PDF를 생성합니다
     parameters:
       - in: path
-        name: score_id
+        name: scoreId
         required: true
         schema:
           type: integer
@@ -102,7 +102,7 @@ def transform_transpose_route(score_id):
         schema:
           type: object
           properties:
-            result_id:
+            resultId:
               type: integer
               example: 101
             message:
@@ -111,26 +111,25 @@ def transform_transpose_route(score_id):
       404:
         description: 악보 ID를 찾을 수 없음
     """
-    score = Score.query.get(score_id)
+    score = Score.query.get(scoreId)
     if not score:
         return jsonify({'error': 'Score not found'}), 404
 
     data = request.get_json()
     shift = data.get('shift')
-
     if shift is None:
         return jsonify({'error': 'shift is required'}), 400
 
-    result_id = perform_transpose(score, int(shift))
+    resultId = perform_transpose(score, int(shift))
 
     return jsonify({
-        'result_id': result_id,
+        'resultId': resultId,
         'message': 'Transpose completed successfully'
     }), 201
 
 
-@transform_bp.route('/score/<int:score_id>/lyrics', methods=['POST'])
-def lyrics_extract_route(score_id):
+@transform_bp.route('/score/<int:scoreId>/lyrics', methods=['POST'])
+def lyricsExtractRoute(scoreId):
     """
     가사 추출 API
     ---
@@ -139,7 +138,7 @@ def lyrics_extract_route(score_id):
     summary: 업로드된 악보에서 가사를 추출하여 텍스트 파일로 저장하고 결과 ID를 반환합니다
     parameters:
       - in: path
-        name: score_id
+        name: scoreId
         required: true
         schema:
           type: integer
@@ -150,10 +149,10 @@ def lyrics_extract_route(score_id):
         schema:
           type: object
           properties:
-            result_id:
+            resultId:
               type: integer
               example: 301
-            text_path:
+            textPath:
               type: string
               example: "convert_result/301.txt"
             message:
@@ -162,24 +161,24 @@ def lyrics_extract_route(score_id):
       404:
         description: 악보 ID를 찾을 수 없음
     """
-    score = Score.query.get(score_id)
+    score = Score.query.get(scoreId)
     if not score:
         return jsonify({'error': 'Score not found'}), 404
 
-    result_id = extract_lyrics(score)
-    result = Result.query.get(result_id)
+    resultId = extract_lyrics(score)
+    result = Result.query.get(resultId)
     if not result:
         return jsonify({"error": "Result not found"}), 500
 
     return jsonify({
-        'result_id': result_id,
-        'text_path': result.download_path,
+        'resultId': resultId,
+        'textPath': result.download_path,
         'message': 'Lyrics extracted successfully'
     }), 200
 
 
-@transform_bp.route('/score/<int:score_id>/melody', methods=['POST'])
-def melody_extract_route(score_id):
+@transform_bp.route('/score/<int:scoreId>/melody', methods=['POST'])
+def melodyExtractRoute(scoreId):
     """
     멜로디 추출 API
     ---
@@ -188,7 +187,7 @@ def melody_extract_route(score_id):
     summary: 업로드된 악보에서 특정 마디 범위의 멜로디를 추출하고 MP3 파일을 생성합니다
     parameters:
       - in: path
-        name: score_id
+        name: scoreId
         required: true
         schema:
           type: integer
@@ -199,27 +198,27 @@ def melody_extract_route(score_id):
         schema:
           type: object
           properties:
-            start_measure:
+            startMeasure:
               type: integer
               example: 1
               description: 시작 마디
-            end_measure:
+            endMeasure:
               type: integer
               example: 8
               description: 종료 마디
           required:
-            - start_measure
-            - end_measure
+            - startMeasure
+            - endMeasure
     responses:
       200:
         description: 멜로디 추출 완료
         schema:
           type: object
           properties:
-            result_id:
+            resultId:
               type: integer
               example: 205
-            mp3_path:
+            mp3Path:
               type: string
               example: "convert_result/205.mp3"
             message:
@@ -229,20 +228,20 @@ def melody_extract_route(score_id):
         description: 악보 ID를 찾을 수 없음
     """
     data = request.get_json()
-    start = data.get('start_measure')
-    end = data.get('end_measure')
+    start = data.get('startMeasure')
+    end = data.get('endMeasure')
 
-    score = Score.query.get(score_id)
+    score = Score.query.get(scoreId)
     if not score:
         return jsonify({'error': 'Score not found'}), 404
 
-    result_id = extract_melody(score, start, end)
-    result = Result.query.get(result_id)
+    resultId = extract_melody(score, start, end)
+    result = Result.query.get(resultId)
     if not result:
         return jsonify({"error": "Result not found"}), 500
 
     return jsonify({
-        'result_id': result_id,
-        'mp3_path': result.audio_path,
+        'resultId': resultId,
+        'mp3Path': result.audio_path,
         'message': f'Melody extracted from measure {start} to {end}'
     }), 200

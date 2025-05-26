@@ -34,20 +34,20 @@ def kakao_callback():
     }
     token_response = requests.post(token_url, data=token_data)
     token_json = token_response.json()
-    access_token = token_json.get('access_token')
-    if not access_token:
+    accessToken = token_json.get('access_token')
+    if not accessToken:
         return jsonify({'error': 'Failed to get Kakao access token'}), 400
 
     user_info_url = "https://kapi.kakao.com/v2/user/me"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {"Authorization": f"Bearer {accessToken}"}
     user_info_response = requests.get(user_info_url, headers=headers)
     user_info = user_info_response.json()
 
-    kakao_id = user_info.get("id")
+    kakaoId = user_info.get("id")
     nickname = user_info.get("properties", {}).get("nickname", "")
-    profile_image = user_info.get("properties", {}).get("profile_image", "")
+    profileImage = user_info.get("properties", {}).get("profile_image", "")
 
-    result = handle_kakao_login(kakao_id, nickname, profile_image)
+    result = handle_kakao_login(kakaoId, nickname, profileImage)
     return jsonify(result), 200
 
 
@@ -78,9 +78,9 @@ def kakao_callback():
             'schema': {
                 'type': 'object',
                 'properties': {
-                    'access_token': {'type': 'string'},
-                    'refresh_token': {'type': 'string'},
-                    'user_id': {'type': 'integer'},
+                    'accessToken': {'type': 'string'},
+                    'refreshToken': {'type': 'string'},
+                    'userId': {'type': 'integer'},
                     'nickname': {'type': 'string'}
                 }
             }
@@ -107,20 +107,20 @@ def kakao_token():
         }
         token_response = requests.post(token_url, data=token_data)
         token_json = token_response.json()
-        access_token = token_json.get('access_token')
-        if not access_token:
+        accessToken = token_json.get('access_token')
+        if not accessToken:
             return jsonify({'error': 'Failed to get Kakao access token'}), 400
 
         user_info_url = "https://kapi.kakao.com/v2/user/me"
-        headers = {"Authorization": f"Bearer {access_token}"}
+        headers = {"Authorization": f"Bearer {accessToken}"}
         user_info_response = requests.get(user_info_url, headers=headers)
         user_info = user_info_response.json()
 
-        kakao_id = user_info.get("id")
+        kakaoId = user_info.get("id")
         nickname = user_info.get("properties", {}).get("nickname", "")
-        profile_image = user_info.get("properties", {}).get("profile_image", "")
+        profileImage = user_info.get("properties", {}).get("profile_image", "")
 
-        result = handle_kakao_login(kakao_id, nickname, profile_image)
+        result = handle_kakao_login(kakaoId, nickname, profileImage)
         return jsonify(result), 200
 
     except Exception as e:
@@ -141,9 +141,9 @@ def refresh():
           schema:
             type: object
             required:
-              - refresh_token
+              - refreshToken
             properties:
-              refresh_token:
+              refreshToken:
                 type: string
                 example: "abc.def.ghi"
     responses:
@@ -154,10 +154,10 @@ def refresh():
             schema:
               type: object
               properties:
-                access_token:
+                accessToken:
                   type: string
                   example: "new.access.token"
-                refresh_token:
+                refreshToken:
                   type: string
                   example: "original.refresh.token"
       400:
@@ -166,18 +166,18 @@ def refresh():
         description: 토큰 만료 또는 유효하지 않음
     """
     data = request.get_json()
-    refresh_token = data.get('refresh_token')
+    refreshToken = data.get('refreshToken')
 
-    if not refresh_token:
+    if not refreshToken:
         return jsonify({"error": "No refresh token provided"}), 400
 
-    new_access_token, error = refresh_access_token(refresh_token)
+    newAccessToken, error = refresh_access_token(refreshToken)
     if error:
         return jsonify({"error": error}), 401
 
     return jsonify({
-        "access_token": new_access_token,
-        "refresh_token": refresh_token
+        "accessToken": newAccessToken,
+        "refreshToken": refreshToken
     }), 200
 
 
@@ -189,7 +189,7 @@ def issue_test_token():
     tags:
       - auth
     summary: 테스트용 JWT 토큰 발급
-    description: 테스트용 유저 정보를 기반으로 access_token, refresh_token을 자동 발급합니다.
+    description: 테스트용 유저 정보를 기반으로 accessToken, refreshToken을 자동 발급합니다.
     responses:
       200:
         description: 토큰 발급 성공
@@ -198,24 +198,24 @@ def issue_test_token():
             schema:
               type: object
               properties:
-                access_token:
+                accessToken:
                   type: string
                   description: "Access Token"
-                refresh_token:
+                refreshToken:
                   type: string
                   description: "Refresh Token"
-                user_id:
+                userId:
                   type: integer
                   example: 1
                 nickname:
                   type: string
                   example: "테스트유저"
     """
-    kakao_id = "test_kakao_12345"
+    kakaoId = "test_kakao_12345"
     nickname = "테스트유저"
-    profile_image = ""
+    profileImage = ""
 
-    result = handle_kakao_login(kakao_id, nickname, profile_image)
+    result = handle_kakao_login(kakaoId, nickname, profileImage)
     return jsonify(result), 200
 
 
@@ -227,7 +227,7 @@ def logout():
     tags:
       - auth
     summary: 로그아웃
-    description: 클라이언트가 저장한 access_token 및 refresh_token을 삭제하면 로그아웃이 완료됩니다. 서버에서는 별도 처리를 하지 않습니다.
+    description: 클라이언트가 저장한 accessToken 및 refreshToken을 삭제하면 로그아웃이 완료됩니다. 서버에서는 별도 처리를 하지 않습니다.
     responses:
       200:
         description: 로그아웃 성공

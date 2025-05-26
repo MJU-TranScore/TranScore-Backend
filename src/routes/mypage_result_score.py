@@ -11,20 +11,20 @@ result_score_bp = Blueprint("result_score_bp", __name__, url_prefix="/mypage/res
 
 
 # ✅ 공통 JWT 인증 함수
-def get_user_id_from_token():
-    auth_header = request.headers.get("Authorization", None)
-    if not auth_header or not auth_header.startswith("Bearer "):
+def getUserIdFromToken():
+    authHeader = request.headers.get("Authorization", None)
+    if not authHeader or not authHeader.startswith("Bearer "):
         return None, jsonify({"message": "토큰이 필요합니다"}), 401
 
-    token = auth_header.split(" ")[1]
+    token = authHeader.split(" ")[1]
     payload, error = decode_token(token)
     if error:
         return None, jsonify({"message": error}), 401
 
-    return payload["user_id"], None, None
+    return payload["userId"], None, None
 
 
-@result_score_bp.route("/<int:result_id>/save", methods=["POST"])
+@result_score_bp.route("/<int:resultId>/save", methods=["POST"])
 @swag_from({
     'tags': ['Mypage'],
     'summary': '변환 결과 저장 (키 변경, 가사, 멜로디)',
@@ -37,7 +37,7 @@ def get_user_id_from_token():
             'schema': {'type': 'string'}
         },
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'required': True,
             'description': '저장할 결과 ID',
@@ -50,12 +50,12 @@ def get_user_id_from_token():
         401: {'description': '인증 실패'}
     }
 })
-def save_result(result_id):
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
+def saveResult(resultId):
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
 
-    if save_result_score(user_id, result_id):
+    if save_result_score(userId, resultId):
         return jsonify({"message": "변환 결과가 저장되었습니다"}), 201
     return jsonify({"message": "이미 저장된 결과입니다"}), 400
 
@@ -90,9 +90,9 @@ def save_result(result_id):
                 'application/json': {
                     'example': [
                         {
-                            'result_id': 1,
-                            'result_type': 'transpose',
-                            'saved_at': '2025-05-18T12:34:56'
+                            'resultId': 1,
+                            'resultType': 'transpose',
+                            'savedAt': '2025-05-18T12:34:56'
                         }
                     ]
                 }
@@ -101,25 +101,25 @@ def save_result(result_id):
         401: {'description': '인증 실패'}
     }
 })
-def get_saved_results():
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
+def getSavedResults():
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
 
-    result_type = request.args.get("type")
-    saved = get_saved_result_scores(user_id, result_type)
+    resultType = request.args.get("type")
+    saved = get_saved_result_scores(userId, resultType)
     result = [
         {
-            "result_id": s.result_id,
-            "result_type": s.result.type,
-            "saved_at": s.saved_at.isoformat()
+            "resultId": s.result_id,
+            "resultType": s.result.type,
+            "savedAt": s.saved_at.isoformat()
         }
         for s in saved
     ]
     return jsonify(result), 200
 
 
-@result_score_bp.route("/<int:result_id>", methods=["DELETE"])
+@result_score_bp.route("/<int:resultId>", methods=["DELETE"])
 @swag_from({
     'tags': ['Mypage'],
     'summary': '저장한 변환 결과 삭제',
@@ -132,7 +132,7 @@ def get_saved_results():
             'schema': {'type': 'string'}
         },
         {
-            'name': 'result_id',
+            'name': 'resultId',
             'in': 'path',
             'required': True,
             'description': '삭제할 변환 결과 ID',
@@ -145,11 +145,11 @@ def get_saved_results():
         401: {'description': '인증 실패'}
     }
 })
-def delete_result(result_id):
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
+def deleteResult(resultId):
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
 
-    if delete_result_score(user_id, result_id):
+    if delete_result_score(userId, resultId):
         return jsonify({"message": "저장이 해제되었습니다"}), 200
     return jsonify({"message": "저장 내역이 없습니다"}), 404

@@ -7,8 +7,8 @@ from flask_cors import CORS
 def create_app():
     app = Flask(__name__)
 
-    # ✅ CORS 설정: withCredentials 대응
-    CORS(app, origins="http://localhost:5173", supports_credentials=True)
+    # ✅ CORS 설정: withCredentials 대응 + 모든 라우트에 확실하게 적용
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     app.config.from_object(Config)
 
@@ -42,11 +42,10 @@ def create_app():
     # 블루프린트 등록
     from src.routes.index import index_bp
     app.register_blueprint(index_bp)
-    
-    # TranScore 블루프린트 등록
+
     from src.routes.auth import auth_bp
     from src.routes.user import user_bp
-    from src.routes.score import score_bp  
+    from src.routes.score import score_bp
     from src.routes.transform import transform_bp
     from src.routes.result import result_bp
     from src.routes.mypage_upload_score import upload_score_bp

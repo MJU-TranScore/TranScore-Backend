@@ -9,18 +9,20 @@ from flasgger import swag_from
 
 upload_score_bp = Blueprint("upload_score_bp", __name__, url_prefix="/mypage/score")
 
+
 # ✅ JWT 인증 공통 함수
-def get_user_id_from_token():
-    auth_header = request.headers.get("Authorization", None)
-    if not auth_header or not auth_header.startswith("Bearer "):
+def getUserIdFromToken():
+    authHeader = request.headers.get("Authorization", None)
+    if not authHeader or not authHeader.startswith("Bearer "):
         return None, jsonify({"message": "토큰이 필요합니다"}), 401
-    token = auth_header.split(" ")[1]
+    token = authHeader.split(" ")[1]
     payload, error = decode_token(token)
     if error:
         return None, jsonify({"message": error}), 401
-    return payload["user_id"], None, None
+    return payload["userId"], None, None
 
-@upload_score_bp.route("/<string:score_id>/save", methods=["POST"])
+
+@upload_score_bp.route("/<string:scoreId>/save", methods=["POST"])
 @swag_from({
     'tags': ['Mypage'],
     'summary': '업로드한 악보 저장',
@@ -33,7 +35,7 @@ def get_user_id_from_token():
             'schema': {'type': 'string'}
         },
         {
-            'name': 'score_id',
+            'name': 'scoreId',
             'in': 'path',
             'required': True,
             'description': '저장할 악보 ID',
@@ -46,13 +48,14 @@ def get_user_id_from_token():
         401: {'description': '인증 실패'}
     }
 })
-def save_score(score_id):
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
-    if save_upload_score(user_id, score_id):
+def saveScore(scoreId):
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
+    if save_upload_score(userId, scoreId):
         return jsonify({"message": "업로드한 악보가 저장되었습니다"}), 201
     return jsonify({"message": "이미 저장된 악보입니다"}), 400
+
 
 @upload_score_bp.route("", methods=["GET"])
 @swag_from({
@@ -74,8 +77,8 @@ def save_score(score_id):
                 'application/json': {
                     'example': [
                         {
-                            'score_id': "abc123",
-                            'saved_at': "2025-05-18T12:34:56"
+                            'scoreId': "abc123",
+                            'savedAt': "2025-05-18T12:34:56"
                         }
                     ]
                 }
@@ -84,22 +87,23 @@ def save_score(score_id):
         401: {'description': '인증 실패'}
     }
 })
-def get_saved_scores():
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
+def getSavedScores():
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
 
-    saved = get_saved_upload_scores(user_id)
+    saved = get_saved_upload_scores(userId)
     result = [
         {
-            "score_id": s.score_id,
-            "saved_at": s.saved_at.isoformat()
+            "scoreId": s.score_id,
+            "savedAt": s.saved_at.isoformat()
         }
         for s in saved
     ]
     return jsonify(result), 200
 
-@upload_score_bp.route("/<string:score_id>", methods=["DELETE"])
+
+@upload_score_bp.route("/<string:scoreId>", methods=["DELETE"])
 @swag_from({
     'tags': ['Mypage'],
     'summary': '저장한 업로드 악보 삭제',
@@ -112,7 +116,7 @@ def get_saved_scores():
             'schema': {'type': 'string'}
         },
         {
-            'name': 'score_id',
+            'name': 'scoreId',
             'in': 'path',
             'required': True,
             'description': '삭제할 악보 ID',
@@ -125,11 +129,11 @@ def get_saved_scores():
         401: {'description': '인증 실패'}
     }
 })
-def delete_score(score_id):
-    user_id, error_response, status_code = get_user_id_from_token()
-    if error_response:
-        return error_response, status_code
+def deleteScore(scoreId):
+    userId, errorResponse, statusCode = getUserIdFromToken()
+    if errorResponse:
+        return errorResponse, statusCode
 
-    if delete_upload_score(user_id, score_id):
+    if delete_upload_score(userId, scoreId):
         return jsonify({"message": "저장이 해제되었습니다"}), 200
     return jsonify({"message": "저장 내역이 없습니다"}), 404
