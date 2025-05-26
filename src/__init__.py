@@ -6,8 +6,10 @@ from flask_cors import CORS
 
 def create_app():
     app = Flask(__name__)
-    CORS(app) 
-    
+
+    # ✅ CORS 설정: withCredentials 대응
+    CORS(app, origins="http://localhost:5173", supports_credentials=True)
+
     app.config.from_object(Config)
 
     # Swagger 초기화
@@ -41,7 +43,7 @@ def create_app():
     from src.routes.index import index_bp
     app.register_blueprint(index_bp)
     
-    #transcore 블루프린트 등록
+    # TranScore 블루프린트 등록
     from src.routes.auth import auth_bp
     from src.routes.user import user_bp
     from src.routes.score import score_bp  
@@ -53,10 +55,9 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(score_bp)
-    app.register_blueprint(transform_bp) 
-    app.register_blueprint(result_bp) 
+    app.register_blueprint(transform_bp)
+    app.register_blueprint(result_bp)
     app.register_blueprint(upload_score_bp)
-    app.register_blueprint(result_score_bp) 
-      
+    app.register_blueprint(result_score_bp)
 
     return app
