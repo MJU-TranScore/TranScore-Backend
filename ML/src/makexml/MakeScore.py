@@ -421,32 +421,59 @@ class MakeScore:
     @staticmethod
     def change_key(score, diff): 
         if diff > 7 or diff < -7:
+            print("❌ 변환 범위 초과, 그대로 리턴")
             return score
         
         if diff == 0:
+            print("❌ diff가 0, 변환 안함")
             return score
-        else:
-            change = {
-                -7: "-P5",
-                -6: "-D5",
-                -5: "-P4",
-                -4: "-M3",
-                -3: "-m3",
-                -2: "-M2",
-                -1: "-m2",
-                1: "m2",
-                2: "M2",
-                3: "m3",
-                4: "M3",
-                5: "P4",
-                6: "D5",
-                7: "P5"
-            }
-            interval_str  = change[diff]
-            intv = interval.Interval(interval_str)
-            new_score = score.transpose(intv)
-            print("키 변환 완료")
-            return new_score
+
+        change = {
+            -7: "-P5",
+            -6: "-D5",
+            -5: "-P4",
+            -4: "-M3",
+            -3: "-m3",
+            -2: "-M2",
+            -1: "-m2",
+            1: "m2",
+            2: "M2",
+            3: "m3",
+            4: "M3",
+            5: "P4",
+            6: "D5",
+            7: "P5"
+        }
+        interval_str  = change[diff]
+        intv = interval.Interval(interval_str)
+
+        print(f"👉 transpose interval: {interval_str}")
+        new_score = score.transpose(intv)
+
+        # 조표도 수동으로 업데이트
+        for p in new_score.parts:
+            # 기존 키 분석
+            orig_key = p.analyze('key')
+            transposed_key = orig_key.transpose(intv)
+
+            ks = key.KeySignature()
+            ks.sharps = transposed_key.sharps
+            ks.mode = transposed_key.mode
+
+            # 첫 마디에 새로운 키 서명 삽입
+            m = p.measure(1)
+            if m:
+                m.insert(0, ks)
+            else:
+                # 첫 마디가 없으면 강제로 만들어서 넣기
+                m_new = stream.Measure(number=1)
+                m_new.insert(0, ks)
+                p.insert(0, m_new)
+
+            print(f"✅ 조표 업데이트: {ks.sharps} {ks.mode}")
+
+        print("✅ 키 변환 완료 및 조표 업데이트!")
+        return new_score
         
     # Score 객체를 받은 파일 이름으로 musicXML로 만들어주는 함수
     # 이름이 없으면 이름없는 악보 + 랜덤 문자열10개로 만들어줌    
