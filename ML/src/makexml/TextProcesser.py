@@ -1,3 +1,4 @@
+"""
 import easyocr
 import json
 import numpy as np
@@ -66,5 +67,5 @@ class TextProcesser:
 
         #print(lyrics_by_verse)
         return dict(lyrics_by_verse)
-
+"""
 
