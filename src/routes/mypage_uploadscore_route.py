@@ -10,16 +10,23 @@ from src.utils.jwt_util import decode_token
 upload_score_bp = Blueprint("upload_score_bp", __name__, url_prefix="/mypage/score")
 
 
-# ✅ JWT 인증 공통 함수
+# ✅ KeyError 방지 & 안전화된 JWT 인증 공통 함수
 def get_user_id_from_token():
     auth_header = request.headers.get("Authorization", None)
     if not auth_header or not auth_header.startswith("Bearer "):
         return None, jsonify({"message": "토큰이 필요합니다"}), 401
+
     token = auth_header.split(" ")[1]
     payload, error = decode_token(token)
-    if error:
-        return None, jsonify({"message": error}), 401
-    return payload["user_id"], None, None
+    if error or not payload:
+        return None, jsonify({"message": error or "유효하지 않은 토큰입니다"}), 401
+
+    # ✅ userId와 user_id 모두 고려 (둘 중 하나라도 있으면 사용)
+    user_id = payload.get("user_id") or payload.get("userId")
+    if not user_id:
+        return None, jsonify({"message": "토큰에 user_id가 없습니다"}), 401
+
+    return user_id, None, None
 
 
 @upload_score_bp.route("/<string:score_id>/save", methods=["POST"])
@@ -52,6 +59,7 @@ def save_score(score_id):
     user_id, error_response, status_code = get_user_id_from_token()
     if error_response:
         return error_response, status_code
+
     if save_upload_score(user_id, score_id):
         return jsonify({"message": "업로드한 악보가 저장되었습니다"}), 201
     return jsonify({"message": "이미 저장된 악보입니다"}), 400

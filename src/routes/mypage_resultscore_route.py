@@ -1,3 +1,5 @@
+# src/routes/mypage_resultscore_route.py
+
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from src.services.mypage_resultscore_service import (
@@ -10,7 +12,7 @@ from src.utils.jwt_util import decode_token
 result_score_bp = Blueprint("result_score_bp", __name__, url_prefix="/mypage/result")
 
 
-# ✅ 공통 JWT 인증 함수
+# ✅ 공통 JWT 인증 함수 (KeyError 방지 안전화!)
 def get_user_id_from_token():
     auth_header = request.headers.get("Authorization", None)
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -18,10 +20,15 @@ def get_user_id_from_token():
 
     token = auth_header.split(" ")[1]
     payload, error = decode_token(token)
-    if error:
-        return None, jsonify({"message": error}), 401
+    if error or not payload:
+        return None, jsonify({"message": error or "유효하지 않은 토큰"}), 401
 
-    return payload["user_id"], None, None
+    # ✅ userId와 user_id를 모두 고려 (둘 중 하나가 있으면 됨!)
+    user_id = payload.get("user_id") or payload.get("userId")
+    if not user_id:
+        return None, jsonify({"message": "토큰에 user_id가 없습니다"}), 401
+
+    return user_id, None, None
 
 
 @result_score_bp.route("/<int:result_id>/save", methods=["POST"])

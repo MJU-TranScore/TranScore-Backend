@@ -112,7 +112,13 @@ def recognize_score():
             return jsonify({'error': 'Failed to load image'}), 500
 
         img_list = [img]
-        score_obj = MakeScore.make_score(img_list)
+
+        # 🎯 MakeScore가 tuple로 결과를 반환하는 경우 첫 번째 요소만 사용!
+        result = MakeScore.make_score(img_list)
+        if isinstance(result, tuple):
+            score_obj = result[0]
+        else:
+            score_obj = result
 
         convert_dir = 'convert_result'
         os.makedirs(convert_dir, exist_ok=True)

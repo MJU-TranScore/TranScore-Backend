@@ -4,7 +4,7 @@ import platform
 import subprocess
 import cv2
 
-from music21 import midi, stream, note
+from music21 import midi, stream, note, converter
 from src.models.db import db
 from src.models.score_model import Score
 from src.models.result_model import Result
@@ -20,12 +20,17 @@ else:
     timidity_cmd = "timidity"
     mscore_cmd = os.path.join("squashfs-root", "mscore4portable")
 
+
 def perform_transpose(score: Score, shift: int) -> int:
     image_path = os.path.join('uploaded_scores', score.original_filename)
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     img_list = [img]
 
+    # 🎯 make_score 결과가 tuple이면 첫 번째 요소만 사용!
     score_obj = MakeScore.make_score(img_list)
+    if isinstance(score_obj, tuple):
+        score_obj = score_obj[0]
+
     transposed_score = MakeScore.change_key(score_obj, shift)
 
     result_id = str(uuid.uuid4())
@@ -65,7 +70,10 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> int:
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
     img_list = [img]
 
+    # 🎯 make_score 결과가 tuple이면 첫 번째 요소만 사용!
     score_obj = MakeScore.make_score(img_list)
+    if isinstance(score_obj, tuple):
+        score_obj = score_obj[0]
 
     extracted_score = stream.Score()
     for part in score_obj.parts:
@@ -101,6 +109,7 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> int:
 
     return result.id
 
+
 def extract_lyrics(score: Score) -> int:
     image_path = os.path.join('uploaded_scores', score.original_filename)
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
@@ -108,7 +117,11 @@ def extract_lyrics(score: Score) -> int:
         raise RuntimeError("이미지를 불러올 수 없습니다")
 
     img_list = [img]
+
+    # 🎯 make_score 결과가 tuple이면 첫 번째 요소만 사용!
     score_obj = MakeScore.make_score(img_list)
+    if isinstance(score_obj, tuple):
+        score_obj = score_obj[0]
 
     lyrics = []
     for el in score_obj.recurse():

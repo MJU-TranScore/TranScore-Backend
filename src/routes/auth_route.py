@@ -100,7 +100,7 @@ def kakao_token():
         token_url = "https://kauth.kakao.com/oauth/token"
         token_data = {
             'grant_type': 'authorization_code',
-            'client_id': Config.KAKAKO_CLIENT_ID,
+            'client_id': Config.KAKAO_CLIENT_ID,
             'redirect_uri': Config.KAKAO_REDIRECT_URI,
             'code': code,
         }

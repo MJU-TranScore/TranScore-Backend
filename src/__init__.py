@@ -7,12 +7,14 @@ from src.models import db
 def create_app():
     app = Flask(__name__)
 
-    # ✅ 전체 앱에 기본 CORS 설정 (프리플라이트 요청 허용)
+    # ✅ 전체 앱에 CORS 설정 (프리플라이트 OPTIONS 포함)
+    # Origin: 프론트엔드 주소 허용
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
+    # ✅ Flask 설정 로드
     app.config.from_object(Config)
 
-    # ✅ Swagger 초기화
+    # ✅ Swagger 초기화 (API 문서)
     swagger_template = {
         "swagger": "2.0",
         "info": {
@@ -34,12 +36,12 @@ def create_app():
             }
         ]
     }
-
     Swagger(app, template=swagger_template)
 
+    # ✅ DB 초기화
     db.init_app(app)
 
-    # ✅ 라우트 등록 및 Blueprint 별도 CORS 적용
+    # ✅ 라우트/블루프린트 등록 및 Blueprint 별 CORS 허용
     from src.routes.auth_route import auth_bp
     from src.routes.user_route import user_bp
     from src.routes.score_route import score_bp

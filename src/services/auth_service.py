@@ -25,11 +25,15 @@ def handle_kakao_login(kakao_id, nickname, profile_image_url):
     }
 
 def refresh_access_token(refresh_token):
-    payload = decode_token(refresh_token)
-    if not payload:
-        return None, "Invalid or expired refresh token"
+    # decode_token이 (payload, error) 형태로 반환됨
+    payload, error = decode_token(refresh_token)
+    if error:
+        return None, error
 
     user_id = payload.get("user_id")
+    if not user_id:
+        return None, "유효하지 않은 토큰입니다."
+
     user = User.query.get(user_id)
     if not user:
         return None, "User not found"
