@@ -1,5 +1,5 @@
 from fractions import Fraction
-from music21 import chord,  stream, note, meter, key, clef, metadata, interval, bar
+from music21 import chord,  stream, note, meter, key, clef, metadata, interval, bar, expressions
 from .ScoreInfo import ScoreInfo
 from .ScoreIterator import ScoreIterator
 from .MeasureIterator import MeasureIterator
@@ -7,7 +7,9 @@ from .Pitch import Pitch
 from .StafflineUtils import StafflineUtils
 from .IntervalPreset import IntervalPreset
 from .MakeTestData import MakeTestData
-from .TextProcesser import TextProcesser
+#from .TextProcesser import TextProcesser
+from ..exception.EmptyDataFrameError import EmptyDataFrameError
+from ..exception.EmptyImageError import EmptyImageError
 from ..FilePath import BASE_DIR
 import random
 import string
@@ -53,7 +55,14 @@ class MakeScore:
         png_list = []
         return png_list
     """
-
+    # 음표와 쉼표에 articulation이 있는지 찾는 
+    @staticmethod
+    def find_articulation_for_note_rest(articulation_df, x1, x2):
+        result_df = articulation_df[
+            (articulation_df["x_center"] >= x1) & (articulation_df["x_center"] < x2)
+        ].copy()
+        return result_df
+    
     #추가한 함수
     #staff_line이 겹쳐 탐지된 경우, y좌표 비슷한 줄끼리 병합하여
     #하나의 줄로 만든다. x1=0, x2=image_width로 강제 확장
@@ -168,12 +177,17 @@ class MakeScore:
     # 이미지 리스트를 받아 pandas dataframe으로 변환시켜주는 함수 
     @staticmethod
     def imgs_to_df(img_list):
+        if not img_list:
+            raise EmptyImageError("이미지 없음")
         df_list = []
         vis_list = img_list.copy() # 원본 이미지 복사헤서 사용 
         detection_results = MakeScore.detect_object(vis_list)
 
         for result in detection_results:
             df_list.append(MakeScore.convert_result_to_df(result))
+
+        if not df_list:
+            raise EmptyDataFrameError("악보로부터 탐지된 객체 없음")
 
         return df_list
 
@@ -218,6 +232,11 @@ class MakeScore:
         scoinfo = ScoreInfo()
         scoiter = ScoreIterator()
         measiter = MeasureIterator()
+        # ✅ 박자표 감지 실패 대비 기본값 설정 (fallback)
+        if scoiter.get_cur_timesig() == [0, 0]:
+            print("[⚠️ 경고] 박자표 감지 실패 → 기본 4/4로 설정됨")
+            scoiter.set_cur_timesig([4, 4])
+            measiter.set_cur_measure_length([4, 4])
 
         # 2. 파트(보표) 생성
         part = stream.Part() # 단일성부. 피아노 양손악보면 2번 하는 식으로 나중에 조정 
@@ -229,18 +248,61 @@ class MakeScore:
         for idx, object_df in enumerate(object_dfs):
             vis = vis_list[idx]
             # 저장된 dataframe에서 보표에 대한 정보만 들고옴
+            # 1. YOLO로 검출된 staff_line을 먼저 가져옴
             staff_df = object_df[object_df["class_name"] == "staff_line"].copy()
             staff_df = staff_df.sort_values(by="y1").reset_index(drop=True)
 
+            # 2. clef 영역 기준으로 개별 fallback 검토
+            clef_df = object_df[object_df["class_name"].isin(["clef_G", "clef_F"])]
+            fallback_staff_rows = []
+
+            for _, clef_row in clef_df.iterrows():
+                clef_y1 = clef_row["y1"]
+                clef_y2 = clef_row["y2"]
+
+                # 이 clef의 세로 범위 안에 들어가는 staff_line의 y_center가 없으면 fallback
+                matched_staff = staff_df[
+                    (staff_df["y_center"] >= clef_y1) & (staff_df["y_center"] <= clef_y2)
+                ]
+
+                if matched_staff.empty:
+                    fallback_lines = StafflineUtils.fallback_staffline_from_clef(clef_row, vis)
+                    if len(fallback_lines) == 5:
+                        print(f"[⚠️ fallback 적용] Clef 기준으로 staff_line 대체 성공: {fallback_lines}")
+                        fallback_staff_rows.append({
+                            "x1": 0,
+                            "x2": vis.shape[1],
+                            "y1": min(fallback_lines),
+                            "y2": max(fallback_lines),
+                            "x_center": vis.shape[1] / 2,
+                            "y_center": sum(fallback_lines) / 5,
+                            "width": vis.shape[1],
+                            "height": max(fallback_lines) - min(fallback_lines),
+                            "class_name": "staff_line",
+                            "class_id": -1,
+                            "confidence": 0.01
+                        })
+
+            # 3. fallback 결과가 있으면 기존 staff_df에 병합
+            if fallback_staff_rows:
+                fallback_df = pd.DataFrame(fallback_staff_rows)
+                staff_df = pd.concat([staff_df, fallback_df], ignore_index=True)
+                staff_df = staff_df.sort_values(by="y1").reset_index(drop=True)
+            """ 서버 인스턴스의 한계로 가사는 잠시 중단         
             # 해당 페이지의 탐지결과에서 가사 영역만 가진 dataframe과 코드 영역만 가진 dataframe
             lyrics_df = object_df[object_df["class_name"] == "lyrics"].copy()
             harmony_df = object_df[object_df["class_name"] == "harmony"].copy()
+            """
+
+            # 해당 페이지의 탐지결과에서 늘임표, 악센트 같이 음표,쉼표에 붙는 악상기호만 들고온 dataframe
+            articulation_df = object_df[object_df["class_name"].isin(["fermata_up", "fermata_down"])] # 현재는 늘임표만 있지만 향후 추가
 
             # 들고온 보표의 개수만큼 반복문
             for staff_index in range(len(staff_df)):
                 row = staff_df.iloc[staff_index]
                 sx1, sy1, sx2, sy2 = int(row["x1"]), int(row["y1"]), int(row["x2"]), int(row["y2"])
 
+                """ 서버 인스턴스의 한계로 가사는 잠시 중단
                 # 해당 보표의 가사만 골라내기
                 if staff_index < len(staff_df) - 1: # 마지막 보표가 아닌 경우
                     next_row = staff_df.iloc[staff_index+1]
@@ -252,14 +314,35 @@ class MakeScore:
                     cur_lyrics_df = lyrics_df[
                         (lyrics_df["y_center"] > row["y2"])
                         ].copy()
+                """ 
+                            
+                # 해당 보표의 articulation만 골라내기
+                cur_row = staff_df.iloc[staff_index]
+
+                if staff_index == 0:  # 첫 번째 보표인 경우
+                    upper_bound = cur_row["y1"] - (cur_row["y2"] - cur_row["y1"]) / 2
+                else:
+                    prev_row = staff_df.iloc[staff_index - 1]
+                    upper_bound = (prev_row["y2"] + cur_row["y1"]) / 2
+
+                if staff_index < len(staff_df) - 1:  # 마지막 보표가 아닌 경우
+                    next_row = staff_df.iloc[staff_index + 1]
+                    lower_bound = (cur_row["y2"] + next_row["y1"]) / 2
+                else:
+                    lower_bound = cur_row["y2"] + (cur_row["y2"] - cur_row["y1"]) / 2
+
+                cur_articulation_df = articulation_df[
+                    (articulation_df["y_center"] > upper_bound) &
+                    (articulation_df["y_center"] < lower_bound)
+                ].sort_values(by=["x_center", "y_center"]).copy()
                     
                 # 박스쳐진 staff_line에 선이 5개가 안들어가있는 경우가 있어서 y좌표에 약간의 padding을 적용
                 y_padding = int(row["height"] * 0.05)
                 y1_pad = max(0, sy1 - y_padding)
                 y2_pad = min(vis.shape[0], sy2 + y_padding)
 
-                # 이미지에서 잘라냄
-                staff_crop = vis[y1_pad:y2_pad, sx1:sx2]
+                # 이미지에서 잘라냄, 강제 확장 x=0부터 crop
+                staff_crop = vis[y1_pad:y2_pad, 0:vis.shape[1]]
 
                 # OpenCV로 5줄 찾음
                 staff_lines = StafflineUtils.extract_5lines(staff_crop)
@@ -287,10 +370,10 @@ class MakeScore:
 
                     if cid in [3,4]: # 음자리표
                         print("clef: ", cid)
-                        if scoiter.clef != cid:
-                            scoiter.clef = cid
-                            measiter.cur_clef = cid
-                            measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
+                        if scoiter.get_cur_clef() != cid:
+                            scoiter.set_cur_clef(cid)
+                            measiter.set_cur_clef(cid)
+                            measiter.calc_interval_list()
 
                             if cid == 4:
                                 m.append(clef.TrebleClef())
@@ -299,16 +382,17 @@ class MakeScore:
 
                     elif "keysig" in cls: # 조표
                         keysig = cls.split("_")[1]
-                        print("keysig_index: ", cls)
-                        if IntervalPreset.KEY_ORDER[measiter.cur_keysig] != keysig:
+                        print("keysig: ", cls)
+                        if IntervalPreset.KEY_ORDER[measiter.get_cur_keysig()] != keysig:
                             keysig_index = IntervalPreset.KEY_ORDER.index(keysig)
+                            print("keysig_index: " , keysig_index)
                             if keysig_index > 6:
                                 keysig_index = keysig_index - 13
-                            scoinfo.keysig_list.append(keysig_index)
-                            scoiter.cur_keysig = keysig_index
-                            measiter.cur_keysig = keysig_index
-                            measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
-                            print(measiter.interval_list)
+                            scoinfo.add_keysig(keysig_index)
+                            scoiter.set_cur_keysig(keysig_index)
+                            measiter.set_cur_keysig(keysig_index)
+                            measiter.calc_interval_list()
+                            print(measiter.get_interval_list())
                             for el in m.getElementsByClass(key.KeySignature):
                                 m.remove(el)
                             m.insert(0, key.KeySignature(keysig_index))
@@ -316,19 +400,55 @@ class MakeScore:
 
                     elif "timesig" in cls: # 박자표
                         parts = cls.split("_")
-                        if scoiter.cur_timesig[0] != parts[1] or scoiter.cur_timesig[1] != parts[2]:
-                            scoiter.cur_timesig[0] = parts[1]
-                            scoiter.cur_timesig[1] = parts[2]
-                            measiter.measure_length = Fraction(int(parts[1])) * Fraction(4, int(parts[2]))
-                            m.append(meter.TimeSignature(f'{parts[1]}/{parts[2]}'))
+                        print("박자표 인식: ", parts)
+                        parts_int = [int(parts[1]), int(parts[2])]
+                        if not scoiter.compare_timesig(parts_int):
+                            scoiter.set_cur_timesig(parts_int)
+                            #measiter.measure_length = Fraction(int(parts[1])) * Fraction(4, int(parts[2]))
+                            measiter.set_cur_measure_length(parts_int)
+                            m.append(meter.TimeSignature(f'{parts_int[0]}/{parts_int[1]}'))
 
                     elif cls in MakeScore.REST_DURATION_MAP: # 쉼표
                         r = note.Rest()
-                        r.duration.quarterLength = MakeScore.REST_DURATION_MAP[cls]
+                        duration = MakeScore.REST_DURATION_MAP[cls]
+                        r.duration.quarterLength = duration
+                        # articulation 확인
+                        if not cur_articulation_df.empty:
+                            detected_articulation = MakeScore.find_articulation_for_note_rest(cur_articulation_df, row["x1"], row["x2"])
+
+                            if not detected_articulation.empty:
+                                for _, row in detected_articulation.iterrows():
+                                    atc_cls = row["class_name"]
+                                    if "fermata_up" in atc_cls:
+                                        # 늘임표 윗방향
+                                        f = expressions.Fermata('normal')
+                                        f.placement = 'above'
+                                        r.expressions.append(f)
+                                    elif "fermata_down" in atc_cls:
+                                        # 늘임표 아랫방향
+                                        f = expressions.Fermata('normal')
+                                        f.placement = 'below' 
+                                        r.expressions.append(f)
+
+                        # 기존 마디가 가득 찬 경우 이건 마디인식을 실패한것으로 간주하여 새로운 마디로 시작
+                        # 이 경우 임시표에서 문제가 있을 수 있지만 안넣는것보다 나으므로 현재수준에선 추가함.     
+                        if measiter.get_cur_remain_measure_length() <= 0:
+                            print("마디 인식 실패 추정")
+                            print(f"마디{measurenum} 추가")
+                            part.append(m)
+                            measurenum += 1
+                            m = stream.Measure(number=measurenum)
+                            measiter.set_measiter_from_scoiter(scoiter)
+
                         m.append(r)
+                        measiter.subtract_remain_measure_length(duration)
                         #print(cls)
 
                     elif cls in MakeScore.NOTE_DURATION_MAP: # 음표
+                        # 조표가 나오지 않았는데 음표가 나오는 경우 C키임. 그레서 scoinfo 값 설정. scoiter와 measiter는 기본 C키 가정이므로 따로 설정해주지 않음. 
+                        if scoinfo.is_keysig_empty():
+                            scoinfo.add_keysig(0)
+
                         duration = MakeScore.NOTE_DURATION_MAP[cls]
                         c = chord.Chord()
                         # 점 음표 확인
@@ -339,13 +459,62 @@ class MakeScore:
                             print("dot",cls)
                         else:
                             print(cls)
+                            
+                        # pitch 계산 전 staff_gap 계산
+                        cur_staff_lines = cur_staff_df[cur_staff_df["class_name"] == "staff_line"]
+                        staff_lines_y = cur_staff_lines["y_center"].tolist()  # 또는 cur_staff_df에서 "staff_line"만 필터링
+                        staff_lines_y.sort()
+
+                        if len(staff_lines_y) >= 2:
+                            staff_gap = (max(staff_lines_y) - min(staff_lines_y)) / (len(staff_lines_y) - 1)
+                        else:
+                            staff_gap = 8  # 기본 fallback 값
 
                         # pitch 계산
                         head_df = Pitch.find_note_head(cur_staff_note_head, row["x1"], pitch_y_top, row["x2"], pitch_y_bottom)
                         print("음표탐지시도 완료")
+
                         if head_df.empty:
-                            print("탐지된 음표 없음")
-                            continue  # 또는 적절히 skip
+                            print("[⚠️ fallback] note_head 미탐지 → bounding box 기반 탐색 시도")
+                            results = StafflineUtils.detect_note_head_opencv(vis, (row["x1"], pitch_y_top, row["x2"], pitch_y_bottom), staff_gap)
+    
+                            if results:  # 여러 개 note_head 좌표 있음
+                                fallback_heads = pd.DataFrame([{
+                                    "class_id": 29,  # 또는 MakeTestData.CLASS_NAMES.index("note_head")
+                                    "class_name": "note_head",
+                                    "confidence": 0.80,
+                                    "x1": cx - 6, "y1": cy - 6, "x2": cx + 6, "y2": cy + 6,
+                                    "x_center": cx, "y_center": cy,
+                                    "width": 12, "height": 12
+                                } for cx, cy in results])
+
+                                cur_staff_note_head = pd.concat([cur_staff_note_head, fallback_heads], ignore_index=True)
+                                cur_staff_df = pd.concat([cur_staff_df, fallback_heads], ignore_index=True)
+                                head_df = fallback_heads
+                                print(f"[✅ fallback 성공] note_head {len(results)}개 추가됨")
+                            else:
+                                print("[❌ fallback 실패] note_head 감지 안됨")
+                                continue  # fallback까지 실패한 경우 skip
+                        # ✅ head_df 감지 후 중복 제거 + 이상치 필터링
+                        print(f"[🧠 debug] head_df 감지된 note_head 수: {len(head_df)}")
+                        if len(head_df) > 4:
+                            print("[⚠️ 제거] 비정상 head_df → 건너뜀")
+                            continue
+
+                        head_df = head_df.sort_values(by="x_center")
+                        filtered_heads = []
+                        last_x = -999
+                        for _, h in head_df.iterrows():
+                            if abs(h["x_center"] - last_x) > 5:
+                                filtered_heads.append(h)
+                                last_x = h["x_center"]
+                        head_df = pd.DataFrame(filtered_heads)
+
+                        if head_df.empty:
+                            print("[❌ 필터링 후 남은 head 없음 → skip]")
+                            continue
+        
+
                         pitches = []
                         for _, head in head_df.iterrows():
                             n = Pitch.find_pitch_from_y(cur_staff_df, head, staff_lines_global, measiter)
@@ -359,6 +528,25 @@ class MakeScore:
                                     c.notes[i].accidental = note_obj.accidental
                                     c.notes[i].accidental.displayStatus = True
 
+                            # articulation 확인
+                            if not cur_articulation_df.empty:
+                                detected_articulation = MakeScore.find_articulation_for_note_rest(cur_articulation_df, row["x1"], row["x2"])
+
+                                if not detected_articulation.empty:
+                                    for _, row in detected_articulation.iterrows():
+                                        atc_cls = row["class_name"]
+                                        if "fermata_up" in atc_cls:
+                                            # 늘임표 윗방향
+                                            f = expressions.Fermata('normal')
+                                            f.placement = 'above'
+                                            c.expressions.append(f)
+                                        elif "fermata_down" in atc_cls:
+                                            # 늘임표 아랫방향
+                                            f = expressions.Fermata('normal')
+                                            f.placement = 'below'
+                                            c.expressions.append(f)
+
+                            """ 서버 인스턴스의 한계로 가사는 잠시 중단
                             # 가사 확인
                             lyrics_list = TextProcesser.find_text_list(cur_lyrics_df, row["x1"], row["x2"])
 
@@ -385,7 +573,20 @@ class MakeScore:
                                 lyric_obj.number = i + 1
                                 #c.notes[0].lyrics.append(lyric_obj)
                                 c.addLyric(lyric)
+                            """ 
+                            
+                            # 기존 마디가 가득 찬 경우 이건 마디인식을 실패한것으로 간주하여 새로운 마디로 시작
+                            # 이 경우 임시표에서 문제가 있을 수 있지만 안넣는것보다 나으므로 현재수준에선 추가함.     
+                            if measiter.get_cur_remain_measure_length() <= 0:
+                                print("마디 인식 실패 추정")
+                                print(f"마디{measurenum} 추가")
+                                part.append(m)
+                                measurenum += 1
+                                m = stream.Measure(number=measurenum)
+                                measiter.set_measiter_from_scoiter(scoiter)
+
                             m.append(c)
+                            measiter.subtract_remain_measure_length(duration)
                             print(c)
 
                     elif cls in ["measure", "measure_double", "measure_final"]:
@@ -394,11 +595,38 @@ class MakeScore:
                         elif cls == "measure_final":
                           m.rightBarline = bar.Barline("light-heavy") 
 
+                        print(f"마디{measurenum} 추가")
                         part.append(m)
                         measurenum += 1
                         m = stream.Measure(number=measurenum)
-                        measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
+                        measiter.set_measiter_from_scoiter(scoiter)
                     
+                    elif cls in ["repeat_start", "repeat_end", "repeat_both"]: # 도돌이표
+                        if cls == "repeat_start": # 도돌이표 시작
+                            #if measiter.get_cur_remain_measure_length() > 0:
+                                 
+                            print(f"마디{measurenum} 추가")
+                            part.append(m)
+                            measurenum += 1
+                            m = stream.Measure(number=measurenum)
+                            m.rightBarline = bar.Repeat(direction='start')
+                            measiter.set_measiter_from_scoiter(scoiter)
+                        elif cls == "repeat_end": # 도돌이표 끝 
+                            m.rightBarline = bar.Repeat(direction='end')
+                            print(f"마디{measurenum} 추가")
+                            part.append(m)
+                            measurenum += 1
+                            m = stream.Measure(number=measurenum)
+                            measiter.set_measiter_from_scoiter(scoiter)
+                        elif cls == "repeat_both": # 도돌이표 양쪽 
+                            print(f"마디{measurenum} 추가")
+                            part.append(m)
+                            measurenum += 1
+                            m = stream.Measure(number=measurenum)
+                            m.rightBarline = bar.Repeat(direction='end')
+                            m.rightBarline = bar.Repeat(direction='start')
+                            measiter.set_measiter_from_scoiter(scoiter)
+
                     """
                     elif cls in ["measure", "double_measure"]:
                         part.append(m)
@@ -407,13 +635,11 @@ class MakeScore:
                         measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
                     """
 
+        print(f"마디{measurenum} 추가")
+        part.append(m)                                # 마지막 마디를 파트에 추가
+        score.append(part)                            # 파트를 전체 악보에 추가
 
-        part.append(m)
-        measurenum += 1
-        m = stream.Measure(number=measurenum)
-        score.append(part)
-
-        return score
+        return score, scoinfo
 
     # 키를 변환하는 함수 
     # Score 객체와 변환할 값을 정수로 받아서 키를 변환
