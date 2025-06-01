@@ -1,6 +1,6 @@
-from src.makexml.ScoreIterator import ScoreIterator
+from .ScoreIterator import ScoreIterator
 from fractions import Fraction
-from src.makexml.IntervalPreset import IntervalPreset
+from .IntervalPreset import IntervalPreset
 class MeasureIterator:
     def __init__(self):
         self.__cur_keysig = 0 # 기본은 C로 가정 
