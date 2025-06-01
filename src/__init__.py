@@ -40,17 +40,16 @@ def create_app():
     db.init_app(app)
 
     # ✅ 라우트 등록 및 Blueprint 별도 CORS 적용
-    from src.routes.index import index_bp
-    from src.routes.auth import auth_bp
-    from src.routes.user import user_bp
-    from src.routes.score import score_bp
-    from src.routes.transform import transform_bp
-    from src.routes.result import result_bp
-    from src.routes.mypage_upload_score import upload_score_bp
-    from src.routes.mypage_result_score import result_score_bp
+    from src.routes.auth_route import auth_bp
+    from src.routes.user_route import user_bp
+    from src.routes.score_route import score_bp
+    from src.routes.transform_route import transform_bp
+    from src.routes.result_route import result_bp
+    from src.routes.mypage_uploadscore_route import upload_score_bp
+    from src.routes.mypage_resultscore_route import result_score_bp
 
     # Blueprint 별 CORS 적용
-    for bp in [index_bp, auth_bp, user_bp, score_bp, transform_bp, result_bp, upload_score_bp, result_score_bp]:
+    for bp in [auth_bp, user_bp, score_bp, transform_bp, result_bp, upload_score_bp, result_score_bp]:
         CORS(bp, origins="http://localhost:5173", supports_credentials=True)
         app.register_blueprint(bp)
 

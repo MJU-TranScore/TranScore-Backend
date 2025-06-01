@@ -1,9 +1,7 @@
 from .db import db
-from .user import User
-from .score import Score
-from .result import Result
-from .resultScore_save import ResultScoreSave
-from .uploadScore_save import UploadScoreSave 
-from .transform import TransformTranspose
-from .transform import TransformLyrics
-from .transform import TransformMelody
+from .user_model import User
+from .score_model import Score
+from .result_model import Result
+from .resultscore_save_model import ResultScoreSave
+from .uploadscore_save_model import UploadScoreSave 
+from .transform_model import TransformTranspose, TransformLyrics, TransformMelody
