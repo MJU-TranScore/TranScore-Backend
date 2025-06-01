@@ -3,6 +3,7 @@ import cv2
 import pandas as pd
 import numpy as np
 from .IntervalPreset import IntervalPreset
+from music21.pitch import Accidental
 
 class Pitch:
 
@@ -23,7 +24,7 @@ class Pitch:
 
         return: 해당 위치의 MIDI pitch (int), or None
         """
-        interval_list = measiter.interval_list
+        interval_list = measiter.get_interval_list()
 
         if len(staff_lines) != 5 or len(interval_list) != 19:
             return None
@@ -82,16 +83,16 @@ class Pitch:
                 if adjust == 1:
                     interval_list[pitch_idx] += 1
                     n.pitch.midi = interval_list[pitch_idx]
-                    n.accidental = note.Accidental('sharp')
+                    n.accidental = Accidental('sharp')
                 elif adjust == -1:
                     interval_list[pitch_idx] -= 1
                     n.pitch.midi = interval_list[pitch_idx]
-                    n.accidental = note.Accidental('flat')
+                    n.accidental = Accidental('flat')
                 else:
-                    temp_interval = IntervalPreset.get_interval_list(measiter.cur_clef, 0)
+                    temp_interval = IntervalPreset.get_interval_list(measiter.get_cur_clef(), 0)
                     interval_list[pitch_idx] = temp_interval[pitch_idx]
                     n.pitch.midi = interval_list[pitch_idx]
-                    n.accidental = note.Accidental('natural')
+                    n.accidental = Accidental('natural')
                 return n
 
         n.pitch.midi = interval_list[pitch_idx]
