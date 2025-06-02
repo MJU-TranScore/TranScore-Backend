@@ -20,7 +20,7 @@ from music21 import converter  # 🎵 키 분석을 위해 추가
 
 score_bp = Blueprint('score', __name__)
 
-# ✅ 1. 파일 업로드
+# ✅ 1. 업로드
 @score_bp.route('/score/upload', methods=['POST'])
 @swag_from({
     'tags': ['score'],
@@ -32,6 +32,13 @@ score_bp = Blueprint('score', __name__)
             'type': 'file',
             'required': True,
             'description': '업로드할 악보 이미지'
+        },
+        {
+            'name': 'title',
+            'in': 'formData',
+            'type': 'string',
+            'required': False,
+            'description': '곡 제목'
         }
     ],
     'responses': {
@@ -42,6 +49,7 @@ score_bp = Blueprint('score', __name__)
 })
 def upload_score_file():
     file = request.files.get('file')
+    title = request.form.get('title')
     if not file:
         return jsonify({'error': 'No file uploaded'}), 400
 
@@ -53,8 +61,8 @@ def upload_score_file():
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
-        # DB에 업로드 정보 저장
-        score_id = save_score_file_to_db(filename)
+        # ✅ 제목도 함께 저장
+        score_id = save_score_file_to_db(filename, title)
 
         return jsonify({
             'score_id': score_id,
@@ -106,14 +114,11 @@ def recognize_score():
             return jsonify({'error': 'Score not found'}), 404
 
         file_path = os.path.join('uploaded_scores', score.original_filename)
-
         img = cv2.imread(file_path, cv2.IMREAD_COLOR)
         if img is None:
             return jsonify({'error': 'Failed to load image'}), 500
 
         img_list = [img]
-
-        # 🎯 MakeScore가 tuple로 결과를 반환하는 경우 첫 번째 요소만 사용!
         result = MakeScore.make_score(img_list)
         if isinstance(result, tuple):
             score_obj = result[0]
@@ -122,25 +127,22 @@ def recognize_score():
 
         convert_dir = 'convert_result'
         os.makedirs(convert_dir, exist_ok=True)
-
         temp_id = os.urandom(4).hex()
         xml_path = os.path.join(convert_dir, f'{temp_id}.xml')
         pdf_path = os.path.join(convert_dir, f'{temp_id}.pdf')
         MakeScore.score_to_xml(score_obj, temp_id)
 
-        # MuseScore로 PDF 변환
         if platform.system() == "Windows":
             mscore_path = r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
         else:
             mscore_path = os.path.join("squashfs-root", "mscore4portable")
         subprocess.run([mscore_path, xml_path, "-o", pdf_path], check=True)
 
-        # 🎯 music21로 XML 파싱 & 키 분석
         parsed_score = converter.parse(xml_path)
         key_analysis = parsed_score.analyze('key')
         detected_key = key_analysis.tonic.name if key_analysis else 'Unknown'
 
-        # DB에 결과 업데이트 (key도 함께)
+        # DB에 결과 업데이트
         score.xml_path = xml_path
         score.pdf_path = pdf_path
         score.key = detected_key
@@ -150,7 +152,7 @@ def recognize_score():
             'score_id': score_id,
             'xml_path': xml_path,
             'pdf_path': pdf_path,
-            'key': detected_key,  # 🎯 추가됨
+            'key': detected_key,
             'message': 'Score recognized and XML/PDF generated successfully'
         }), 200
 

@@ -1,6 +1,7 @@
 from src.models.db import db
 from src.models.resultscore_save_model import ResultScoreSave
 from src.models.result_model import Result
+from src.models.score_model import Score
 
 def save_result_score(user_id, result_id):
     exists = ResultScoreSave.query.filter_by(user_id=user_id, result_id=result_id).first()
@@ -13,7 +14,14 @@ def save_result_score(user_id, result_id):
     return True
 
 def get_saved_result_scores(user_id, result_type=None):
-    query = ResultScoreSave.query.join(Result).filter(ResultScoreSave.user_id == user_id)
+    # ✅ 명확히 join 순서를 select_from()으로 지정
+    query = (
+        db.session.query(ResultScoreSave, Result, Score)
+        .select_from(ResultScoreSave)
+        .join(Result, ResultScoreSave.result_id == Result.id)
+        .join(Score, Result.score_id == Score.id)
+        .filter(ResultScoreSave.user_id == user_id)
+    )
     if result_type:
         query = query.filter(Result.type == result_type)
     return query.all()

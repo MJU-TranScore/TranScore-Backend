@@ -5,25 +5,25 @@ import os
 JWT_SECRET = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = "HS256"
 
-# 액세스 토큰 생성 (1시간 유효)
+# ✅ 액세스 토큰 생성 (영구적)
 def create_access_token(userId):
     payload = {
-        "userId": userId,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+        "userId": userId
+        # "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)  # 🚫 만료 제거
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return token
 
-# 리프레시 토큰 생성 (7일 유효)
+# ✅ 리프레시 토큰 생성 (영구적)
 def create_refresh_token(userId):
     payload = {
-        "userId": userId,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        "userId": userId
+        # "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)  # 🚫 만료 제거
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return token
 
-# 토큰 디코딩 + 오류 메시지 리턴
+# ✅ 토큰 디코딩 + 오류 메시지 리턴
 def decode_token(token):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])

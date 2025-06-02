@@ -22,6 +22,11 @@ class Result(db.Model):
 
     created_at = db.Column(db.DateTime, default=db.func.now())
 
+    # ✅ 새롭게 추가할 공통 정보
+    title = db.Column(db.String(255))                # 제목
+    original_filename = db.Column(db.String(255))    # 파일명
+    key = db.Column(db.String(50))                   # 조성
+
     # ✅ ResultScoreSave와의 관계 설정 (마이페이지 저장용)
     saved_by_users = db.relationship(
         'ResultScoreSave',

@@ -1,6 +1,7 @@
 from flask import Flask
 from flasgger import Swagger
 from flask_cors import CORS
+from flask_migrate import Migrate  # ✅ 추가!
 from src.config import Config
 from src.models import db
 
@@ -8,7 +9,6 @@ def create_app():
     app = Flask(__name__)
 
     # ✅ 전체 앱에 CORS 설정 (프리플라이트 OPTIONS 포함)
-    # Origin: 프론트엔드 주소 허용
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     # ✅ Flask 설정 로드
@@ -41,6 +41,9 @@ def create_app():
     # ✅ DB 초기화
     db.init_app(app)
 
+    # ✅ Flask-Migrate 초기화! 🚀
+    Migrate(app, db)
+
     # ✅ 라우트/블루프린트 등록 및 Blueprint 별 CORS 허용
     from src.routes.auth_route import auth_bp
     from src.routes.user_route import user_bp
@@ -50,7 +53,6 @@ def create_app():
     from src.routes.mypage_uploadscore_route import upload_score_bp
     from src.routes.mypage_resultscore_route import result_score_bp
 
-    # Blueprint 별 CORS 적용
     for bp in [auth_bp, user_bp, score_bp, transform_bp, result_bp, upload_score_bp, result_score_bp]:
         CORS(bp, origins="http://localhost:5173", supports_credentials=True)
         app.register_blueprint(bp)
