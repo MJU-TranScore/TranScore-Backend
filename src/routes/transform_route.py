@@ -69,6 +69,10 @@ def upload_score_for_transform():
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
+        # ✅ title이 없으면 파일명 기반으로 설정 (확장자 제거)
+        if not title:
+            title = os.path.splitext(filename)[0]
+
         score_id = save_score_file_to_db(filename, title)
 
         return jsonify({
@@ -111,6 +115,9 @@ def get_score_info():
 # ✅ 2. 키 관련 기능: 미리보기 / 실제 변경
 # ============================================================
 
+def clean_key(key: str) -> str:
+    return key.replace("-", "b").strip()  # ✅ E- → Eb, A- → Ab
+
 @transform_bp.route('/transpose-preview', methods=['POST'])
 @cross_origin(origins="http://localhost:5173", supports_credentials=True)
 def transpose_preview():
@@ -148,12 +155,13 @@ def transpose_preview():
         return '', 200
 
     data = request.get_json()
-    current_key, shift = data.get('current_key'), data.get('shift')
-    if current_key is None or shift is None:
+    current_key = clean_key(data.get('current_key', ''))  # ✅ 변환 적용
+    shift = data.get('shift')
+
+    if not current_key or shift is None:
         return jsonify({'error': 'current_key and shift are required'}), 400
 
     try:
-        from src.utils.transpose_helper import transpose_key  # 안전하게 import 유지
         transposed_key = transpose_key(current_key, int(shift))
         return jsonify({
             'transposed_key': transposed_key,

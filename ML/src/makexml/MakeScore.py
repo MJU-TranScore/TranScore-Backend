@@ -1,5 +1,5 @@
 from fractions import Fraction
-from music21 import chord,  stream, note, meter, key, clef, metadata, interval, bar, expressions
+from music21 import chord,  stream, note, meter, key, clef, metadata, interval, bar, expressions, layout, key, meter
 from .ScoreInfo import ScoreInfo
 from .ScoreIterator import ScoreIterator
 from .MeasureIterator import MeasureIterator
@@ -7,7 +7,7 @@ from .Pitch import Pitch
 from .StafflineUtils import StafflineUtils
 from .IntervalPreset import IntervalPreset
 from .MakeTestData import MakeTestData
-#from .TextProcesser import TextProcesser
+#from src.makexml.TextProcesser import TextProcesser
 from ..exception.EmptyDataFrameError import EmptyDataFrameError
 from ..exception.EmptyImageError import EmptyImageError
 from ..FilePath import BASE_DIR
@@ -55,6 +55,7 @@ class MakeScore:
         png_list = []
         return png_list
     """
+
     # 음표와 쉼표에 articulation이 있는지 찾는 
     @staticmethod
     def find_articulation_for_note_rest(articulation_df, x1, x2):
@@ -62,7 +63,8 @@ class MakeScore:
             (articulation_df["x_center"] >= x1) & (articulation_df["x_center"] < x2)
         ].copy()
         return result_df
-    
+
+
     #추가한 함수
     #staff_line이 겹쳐 탐지된 경우, y좌표 비슷한 줄끼리 병합하여
     #하나의 줄로 만든다. x1=0, x2=image_width로 강제 확장
@@ -91,11 +93,15 @@ class MakeScore:
                     continue
                 y1_j = staff_lines.loc[j, "y1"]
                 y2_j = staff_lines.loc[j, "y2"]
-
+                """
                 if abs(y1_i - y1_j) < y_threshold and abs(y2_i - y2_j) < y_threshold:
                     group.append(staff_lines.loc[j])
                     used[j] = True
-
+                """
+                y_center_j = staff_lines.loc[j,"y_center"]
+                if y1_i < y_center_j and y_center_j < y2_i:
+                    group.append(staff_lines.loc[j])
+                    used[j] = True
             y1_avg = float(np.mean([g["y1"] for g in group]))
             y2_avg = float(np.mean([g["y2"] for g in group]))
             x1 = 0
@@ -219,9 +225,9 @@ class MakeScore:
         """
 
         # 변환
-        score = MakeScore.convert_df_to_score(object_dfs, vis_list)
+        score, scoinfo = MakeScore.convert_df_to_score(object_dfs, vis_list)
 
-        return score
+        return score, scoinfo
 
     # 각 이미지와 이미지에서 탐지된 객체들을 페이지별로 리스트 형태로 건내줌
     # 그러면 이걸 Score 객체로 변환시켜줌 
@@ -232,11 +238,6 @@ class MakeScore:
         scoinfo = ScoreInfo()
         scoiter = ScoreIterator()
         measiter = MeasureIterator()
-        # ✅ 박자표 감지 실패 대비 기본값 설정 (fallback)
-        if scoiter.get_cur_timesig() == [0, 0]:
-            print("[⚠️ 경고] 박자표 감지 실패 → 기본 4/4로 설정됨")
-            scoiter.set_cur_timesig([4, 4])
-            measiter.set_cur_measure_length([4, 4])
 
         # 2. 파트(보표) 생성
         part = stream.Part() # 단일성부. 피아노 양손악보면 2번 하는 식으로 나중에 조정 
@@ -299,6 +300,7 @@ class MakeScore:
 
             # 들고온 보표의 개수만큼 반복문
             for staff_index in range(len(staff_df)):
+
                 row = staff_df.iloc[staff_index]
                 sx1, sy1, sx2, sy2 = int(row["x1"]), int(row["y1"]), int(row["x2"]), int(row["y2"])
 
@@ -401,7 +403,17 @@ class MakeScore:
                     elif "timesig" in cls: # 박자표
                         parts = cls.split("_")
                         print("박자표 인식: ", parts)
-                        parts_int = [int(parts[1]), int(parts[2])]
+                        if(parts[1] == "C"):
+                            print("C 형태 박자표")
+                            parts_int = [4,4]
+                            scoiter.set_cur_timesig(parts_int)
+                            measiter.set_cur_measure_length(parts_int)
+                            time_sig = meter.TimeSignature('4/4')
+                            time_sig.symbol = 'common'
+                            m.append(time_sig)
+                            continue
+                        else:
+                            parts_int = [int(parts[1]), int(parts[2])]
                         if not scoiter.compare_timesig(parts_int):
                             scoiter.set_cur_timesig(parts_int)
                             #measiter.measure_length = Fraction(int(parts[1])) * Fraction(4, int(parts[2]))
@@ -409,6 +421,11 @@ class MakeScore:
                             m.append(meter.TimeSignature(f'{parts_int[0]}/{parts_int[1]}'))
 
                     elif cls in MakeScore.REST_DURATION_MAP: # 쉼표
+                        # ✅ 박자표 감지 실패 대비 기본값 설정 (fallback)
+                        if scoiter.get_cur_timesig() == [0, 0]:
+                            print("[⚠️ 경고] 박자표 감지 실패 → 기본 4/4로 설정됨")
+                            scoiter.set_cur_timesig([4, 4])
+                            measiter.set_cur_measure_length([4, 4])
                         r = note.Rest()
                         duration = MakeScore.REST_DURATION_MAP[cls]
                         r.duration.quarterLength = duration
@@ -448,7 +465,11 @@ class MakeScore:
                         # 조표가 나오지 않았는데 음표가 나오는 경우 C키임. 그레서 scoinfo 값 설정. scoiter와 measiter는 기본 C키 가정이므로 따로 설정해주지 않음. 
                         if scoinfo.is_keysig_empty():
                             scoinfo.add_keysig(0)
-
+                        # ✅ 박자표 감지 실패 대비 기본값 설정 (fallback)
+                        if scoiter.get_cur_timesig() == [0, 0]:
+                            print("[⚠️ 경고] 박자표 감지 실패 → 기본 4/4로 설정됨")
+                            scoiter.set_cur_timesig([4, 4])
+                            measiter.set_cur_measure_length([4, 4])
                         duration = MakeScore.NOTE_DURATION_MAP[cls]
                         c = chord.Chord()
                         # 점 음표 확인
@@ -480,7 +501,7 @@ class MakeScore:
     
                             if results:  # 여러 개 note_head 좌표 있음
                                 fallback_heads = pd.DataFrame([{
-                                    "class_id": 29,  # 또는 MakeTestData.CLASS_NAMES.index("note_head")
+                                    "class_id": 32,  # 또는 MakeTestData.CLASS_NAMES.index("note_head")
                                     "class_name": "note_head",
                                     "confidence": 0.80,
                                     "x1": cx - 6, "y1": cy - 6, "x2": cx + 6, "y2": cy + 6,
@@ -492,6 +513,19 @@ class MakeScore:
                                 cur_staff_df = pd.concat([cur_staff_df, fallback_heads], ignore_index=True)
                                 head_df = fallback_heads
                                 print(f"[✅ fallback 성공] note_head {len(results)}개 추가됨")
+
+                                head_df = head_df.sort_values(by="x_center")
+                                filtered_heads = []
+                                last_x = -999
+                                for _, h in head_df.iterrows():
+                                    if abs(h["x_center"] - last_x) > 5:
+                                        filtered_heads.append(h)
+                                        last_x = h["x_center"]
+                                head_df = pd.DataFrame(filtered_heads)
+
+                                if head_df.empty:
+                                    print("[❌ 필터링 후 남은 head 없음 → skip]")
+                                    continue
                             else:
                                 print("[❌ fallback 실패] note_head 감지 안됨")
                                 continue  # fallback까지 실패한 경우 skip
@@ -499,19 +533,6 @@ class MakeScore:
                         print(f"[🧠 debug] head_df 감지된 note_head 수: {len(head_df)}")
                         if len(head_df) > 4:
                             print("[⚠️ 제거] 비정상 head_df → 건너뜀")
-                            continue
-
-                        head_df = head_df.sort_values(by="x_center")
-                        filtered_heads = []
-                        last_x = -999
-                        for _, h in head_df.iterrows():
-                            if abs(h["x_center"] - last_x) > 5:
-                                filtered_heads.append(h)
-                                last_x = h["x_center"]
-                        head_df = pd.DataFrame(filtered_heads)
-
-                        if head_df.empty:
-                            print("[❌ 필터링 후 남은 head 없음 → skip]")
                             continue
         
 
@@ -627,19 +648,49 @@ class MakeScore:
                             m.rightBarline = bar.Repeat(direction='start')
                             measiter.set_measiter_from_scoiter(scoiter)
 
-                    """
-                    elif cls in ["measure", "double_measure"]:
-                        part.append(m)
-                        measurenum += 1
-                        m = stream.Measure(number=measurenum)
-                        measiter.interval_list = IntervalPreset.get_interval_list(measiter.cur_clef, measiter.cur_keysig)
-                    """
-
-        print(f"마디{measurenum} 추가")
-        part.append(m)                                # 마지막 마디를 파트에 추가
-        score.append(part)                            # 파트를 전체 악보에 추가
+        if not len(m.notesAndRests) == 0: # 끝세로줄을 만들고 다시 마디를 만드는데 이 경우 마지막에 빈 마디가 들어가므로 음표,쉼표가 없으면 안넣기
+            print(f"마디{measurenum} 추가")
+            part.append(m)                                # 마지막 마디를 파트에 추가
+        score.append(part) 
+                                   # 파트를 전체 악보에 추가
+        for i in range(0, measurenum-1, 4):
+            forth = part.getElementsByClass(stream.Measure)[i]
+            forth.insert(0, layout.SystemLayout(isNew=True))
+        score = MakeScore.correct_accidental(score) 
 
         return score, scoinfo
+    
+    # 조금이라도 이상한 임시표 줄여주는 메소드 
+    @staticmethod
+    def correct_accidental(score):
+        intv = interval.Interval("P1")
+        new_score = score.transpose(intv)
+
+        # 2. 마디별로 조표에 맞게 enharmonic 정리
+        for m in new_score.recurse().getElementsByClass('Measure'):
+            if len(m.notesAndRests) == 0:
+                print("마디가 비었음")
+                continue
+            # 현재 마디의 조표 추정
+            k_sig = m.getElementsByClass(key.KeySignature)
+            current_key = k_sig[0].asKey() if k_sig else m.analyze('key')  # fallback
+        
+            for ch in m.recurse().getElementsByClass(chord.Chord):
+                new_pitches = []
+                for p in ch.pitches:
+                    # 조표와 일치하지 않으면 enharmonic으로 시도
+                    if current_key.accidentalByStep(p.step) != p.accidental:
+                        enh = p.getEnharmonic()
+                        if current_key.accidentalByStep(enh.step) == enh.accidental:
+                            new_pitches.append(enh)
+                        else:
+                            new_pitches.append(p)
+                    else:
+                        new_pitches.append(p)
+                ch.pitches = new_pitches
+
+        return new_score
+        
 
     # 키를 변환하는 함수 
     # Score 객체와 변환할 값을 정수로 받아서 키를 변환
@@ -647,59 +698,58 @@ class MakeScore:
     @staticmethod
     def change_key(score, diff): 
         if diff > 7 or diff < -7:
-            print("❌ 변환 범위 초과, 그대로 리턴")
             return score
         
         if diff == 0:
-            print("❌ diff가 0, 변환 안함")
             return score
+        else:
+            change = {
+                -7: "-P5",
+                -6: "-D5",
+                -5: "-P4",
+                -4: "-M3",
+                -3: "-m3",
+                -2: "-M2",
+                -1: "-m2",
+                1: "m2",
+                2: "M2",
+                3: "m3",
+                4: "M3",
+                5: "P4",
+                6: "D5",
+                7: "P5"
+            }
+            interval_str  = change[diff]
+            intv = interval.Interval(interval_str)
+            new_score = score.transpose(intv)
 
-        change = {
-            -7: "-P5",
-            -6: "-D5",
-            -5: "-P4",
-            -4: "-M3",
-            -3: "-m3",
-            -2: "-M2",
-            -1: "-m2",
-            1: "m2",
-            2: "M2",
-            3: "m3",
-            4: "M3",
-            5: "P4",
-            6: "D5",
-            7: "P5"
-        }
-        interval_str  = change[diff]
-        intv = interval.Interval(interval_str)
+            # 2. 마디별로 조표에 맞게 enharmonic 정리
+            for m in new_score.recurse().getElementsByClass('Measure'):
+                if len(m.notesAndRests) == 0:
+                    print("마디가 비었음")
+                    continue
+                # 현재 마디의 조표 추정
+                k_sig = m.getElementsByClass(key.KeySignature)
+                current_key = k_sig[0].asKey() if k_sig else m.analyze('key')  # fallback
+        
+                for ch in m.recurse().getElementsByClass(chord.Chord):
+                    new_pitches = []
+                    for p in ch.pitches:
+                        # 조표와 일치하지 않으면 enharmonic으로 시도
+                        if current_key.accidentalByStep(p.step) != p.accidental:
+                            enh = p.getEnharmonic()
+                            if current_key.accidentalByStep(enh.step) == enh.accidental:
+                                new_pitches.append(enh)
+                            else:
+                                new_pitches.append(p)
+                        else:
+                            new_pitches.append(p)
+                    ch.pitches = new_pitches
 
-        print(f"👉 transpose interval: {interval_str}")
-        new_score = score.transpose(intv)
-
-        # 조표도 수동으로 업데이트
-        for p in new_score.parts:
-            # 기존 키 분석
-            orig_key = p.analyze('key')
-            transposed_key = orig_key.transpose(intv)
-
-            ks = key.KeySignature()
-            ks.sharps = transposed_key.sharps
-            ks.mode = transposed_key.mode
-
-            # 첫 마디에 새로운 키 서명 삽입
-            m = p.measure(1)
-            if m:
-                m.insert(0, ks)
-            else:
-                # 첫 마디가 없으면 강제로 만들어서 넣기
-                m_new = stream.Measure(number=1)
-                m_new.insert(0, ks)
-                p.insert(0, m_new)
-
-            print(f"✅ 조표 업데이트: {ks.sharps} {ks.mode}")
-
-        print("✅ 키 변환 완료 및 조표 업데이트!")
-        return new_score
+            # 3. 임시표 정리
+            #new_score.makeAccidentals(inPlace=True)
+            print("키 변환 완료")
+            return new_score
         
     # Score 객체를 받은 파일 이름으로 musicXML로 만들어주는 함수
     # 이름이 없으면 이름없는 악보 + 랜덤 문자열10개로 만들어줌    
@@ -711,10 +761,15 @@ class MakeScore:
             ran_str = ''.join(random.choices(chars, k=10))
             name = "이름 없는 악보"+ ran_str
 
-        score.metadata = metadata.Metadata()
-        score.metadata.title = name
+        # ✅ 기존 metadata가 없을 때만 생성
+        if score.metadata is None:
+            score.metadata = metadata.Metadata()
 
-        score.write("musicxml", fp="./convert_result/"+name+'.xml')
+        # ✅ 제목이 이미 설정된 경우 덮어쓰기 금지
+        if not score.metadata.title:
+            score.metadata.title = name
+
+        score.write("musicxml", fp="./convert_result/" + name + ".xml")
 
         # 분명 임시표 이상하게 안넣는거 만들어놨는데 이상하게 나와서 이걸로 한번 테스트
         """temp = MakeScore.change_key(score,1)

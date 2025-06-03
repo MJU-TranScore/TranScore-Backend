@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
+from src.models.result_model import Result
+from src.models.db import db
 from src.services.mypage_resultscore_service import (
     save_result_score,
     get_saved_result_scores,
@@ -37,7 +39,7 @@ def get_user_id_from_token():
     ],
     'responses': {
         201: {'description': '변환 결과가 저장되었습니다'},
-        400: {'description': '이미 저장된 결과입니다'},
+        200: {'description': '이미 저장된 결과입니다'},
         401: {'description': '인증 실패'}
     }
 })
@@ -46,9 +48,28 @@ def save_result(result_id):
     if error_response:
         return error_response, status_code
 
-    if save_result_score(user_id, result_id):
-        return jsonify({"message": "변환 결과가 저장되었습니다"}), 201
-    return jsonify({"message": "이미 저장된 결과입니다"}), 400
+    data = request.get_json(silent=True) or {}
+    title = data.get("title")
+
+    print(f"🚨 save_result() 호출됨: result_id={result_id}")
+    print(f"📦 받은 데이터: {data}")
+    print(f"🎯 전달받은 title: {title}")
+
+    # 이미 저장된 경우에도 OK 반환
+    if not save_result_score(user_id, result_id):
+        return jsonify({"message": "이미 저장된 결과입니다"}), 200
+
+    # 새로 저장된 경우 → title이 오면 업데이트
+    if title:
+        result = Result.query.get(result_id)
+        if result:
+            print(f"📌 커밋 전 기존 DB title: {result.title}")
+            result.title = title
+            db.session.add(result)  # ✅ 명시적으로 추가
+            db.session.commit()
+            print(f"✅ 변경 후 result.title: {result.title}")
+
+    return jsonify({"message": "변환 결과가 저장되었습니다"}), 201
 
 
 @result_score_bp.route("", methods=["GET"])

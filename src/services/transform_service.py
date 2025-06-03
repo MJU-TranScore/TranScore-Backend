@@ -5,7 +5,8 @@ import subprocess
 import cv2
 from pdf2image import convert_from_path
 
-from music21 import midi, stream, note
+
+from music21 import midi, stream, note, metadata 
 from src.models.db import db
 from src.models.score_model import Score
 from src.models.result_model import Result
@@ -33,6 +34,10 @@ def perform_transpose(score: Score, shift: int) -> int:
         score_obj = score_obj[0]
 
     transposed_score = MakeScore.change_key(score_obj, shift)
+
+    # ✅ 제목 설정 추가
+    transposed_score.metadata = transposed_score.metadata or metadata.Metadata()
+    transposed_score.metadata.title = score.title or "Untitled"
 
     # 🔍 변환된 조성 분석
     analyzed_key = transposed_score.analyze('key')
@@ -87,6 +92,7 @@ def perform_transpose(score: Score, shift: int) -> int:
     return result.id
 
 
+
 def extract_melody(score: Score, start_measure: int, end_measure: int) -> dict:
     try:
         image_path = os.path.join('uploaded_scores', score.original_filename)
@@ -127,12 +133,10 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> dict:
         print("🎧 mp3_path =", mp3_path)
         print("🎧 mp3 존재 여부 =", os.path.exists(mp3_path))
 
-        # ✅ 제목 추출 로직
-        title = score.title
-        if not title and score_obj.metadata and score_obj.metadata.title:
-            title = score_obj.metadata.title
-        if not title:
-            title = os.path.splitext(score.original_filename)[0]
+        # ✅ 제목 추출 로직 개선
+        original_filename = score.original_filename or "untitled.png"
+        base_title = os.path.splitext(os.path.basename(original_filename))[0]
+        title = score.title or base_title
 
         # ✅ 조성 분석
         try:
@@ -174,6 +178,7 @@ def extract_melody(score: Score, start_measure: int, end_measure: int) -> dict:
     except Exception as e:
         print("🔥 extract_melody 중 에러 발생:", e)
         raise RuntimeError(f"멜로디 추출 실패: {str(e)}")
+
 
 
 
