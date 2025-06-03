@@ -1,8 +1,7 @@
-# services/score_service.py
+import os
 from src.models.db import db
 from src.models.score_model import Score
 
-# ✅ 제목도 함께 저장
 def save_score_file_to_db(filename: str, title: str = None) -> int:
     new_score = Score(original_filename=filename, title=title)
     db.session.add(new_score)
@@ -25,7 +24,7 @@ def get_score(score_id: int) -> dict:
     if score:
         return {
             'score_id': score.id,
-            'title': score.title,  # ✅ 제목 포함!
+            'title': score.title,
             'original_filename': score.original_filename,
             'xml_path': score.xml_path,
             'pdf_path': score.pdf_path,
@@ -45,3 +44,29 @@ def delete_score(score_id: int) -> bool:
     else:
         print(f"⚠️ Score with id {score_id} not found for delete.")
         return False
+
+# ✅ 가장 최신 인식된 악보 정보 (MelodyExtractPage에서 사용)
+import cv2
+
+def get_latest_score_info() -> dict:
+    score = Score.query.order_by(Score.created_at.desc()).first()
+    if not score:
+        return None
+
+    image_path = os.path.join('uploaded_scores', score.original_filename).replace('\\', '/')
+    abs_path = os.path.join(os.getcwd(), image_path)
+    image = cv2.imread(abs_path)
+    h, w = image.shape[:2]
+
+    return {
+        'score_id': score.id,
+        'title': score.title,
+        'imageUrl': f"http://localhost:5000/{image_path}",
+        'totalMeasures': 50,
+        'imageWidth': w,
+        'imageHeight': h
+    }
+
+
+
+

@@ -16,14 +16,18 @@ from src.services.score_service import (
 from src.models.score_model import Score
 from src.models.db import db
 
-from music21 import converter  # 🎵 키 분석을 위해 추가
+from music21 import converter
 
 score_bp = Blueprint('score', __name__)
 
-# ✅ 1. 업로드
+# ============================================================
+# ✅ 1. 악보 인식 흐름 (기본 업로드 & 키 추출)
+# ============================================================
+
 @score_bp.route('/score/upload', methods=['POST'])
 @swag_from({
     'tags': ['score'],
+    'summary': '악보 이미지 업로드 (인식용)',
     'consumes': ['multipart/form-data'],
     'parameters': [
         {
@@ -61,7 +65,6 @@ def upload_score_file():
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
-        # ✅ 제목도 함께 저장
         score_id = save_score_file_to_db(filename, title)
 
         return jsonify({
@@ -73,10 +76,11 @@ def upload_score_file():
         print('🔥 upload_score_file 에러:', e)
         return jsonify({'error': str(e)}), 500
 
-# ✅ 2. 인식 및 변환 (key도 함께 반환)
+
 @score_bp.route('/score/recognize', methods=['POST'])
 @swag_from({
     'tags': ['score'],
+    'summary': '악보 인식 (XML/PDF 생성 + 키 추출)',
     'consumes': ['application/json'],
     'parameters': [
         {
@@ -120,10 +124,7 @@ def recognize_score():
 
         img_list = [img]
         result = MakeScore.make_score(img_list)
-        if isinstance(result, tuple):
-            score_obj = result[0]
-        else:
-            score_obj = result
+        score_obj = result[0] if isinstance(result, tuple) else result
 
         convert_dir = 'convert_result'
         os.makedirs(convert_dir, exist_ok=True)
@@ -142,7 +143,7 @@ def recognize_score():
         key_analysis = parsed_score.analyze('key')
         detected_key = key_analysis.tonic.name if key_analysis else 'Unknown'
 
-        # DB에 결과 업데이트
+        # DB 저장
         score.xml_path = xml_path
         score.pdf_path = pdf_path
         score.key = detected_key
@@ -160,10 +161,15 @@ def recognize_score():
         print('🔥 recognize_score 에러:', e)
         return jsonify({'error': str(e)}), 500
 
-# ✅ 3. 조회
+
+# ============================================================
+# ✅ 기타 유틸: 단일 악보 조회 & 삭제
+# ============================================================
+
 @score_bp.route('/score/<int:score_id>', methods=['GET'])
 @swag_from({
     'tags': ['score'],
+    'summary': '악보 단일 조회',
     'parameters': [
         {
             'name': 'score_id',
@@ -180,15 +186,13 @@ def recognize_score():
 })
 def get_score_info(score_id):
     result = get_score(score_id)
-    if result:
-        return jsonify(result), 200
-    else:
-        return jsonify({'error': 'Score not found'}), 404
+    return jsonify(result), 200 if result else (jsonify({'error': 'Score not found'}), 404)
 
-# ✅ 4. 삭제
+
 @score_bp.route('/score/<int:score_id>', methods=['DELETE'])
 @swag_from({
     'tags': ['score'],
+    'summary': '악보 삭제',
     'parameters': [
         {
             'name': 'score_id',
@@ -205,7 +209,4 @@ def get_score_info(score_id):
 })
 def delete_score_info(score_id):
     success = delete_score(score_id)
-    if success:
-        return jsonify({'message': 'Score deleted'}), 200
-    else:
-        return jsonify({'error': 'Score not found'}), 404
+    return jsonify({'message': 'Score deleted'}), 200 if success else (jsonify({'error': 'Score not found'}), 404)

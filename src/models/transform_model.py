@@ -25,4 +25,6 @@ class TransformMelody(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     score_id = db.Column(db.Integer, db.ForeignKey('scores.id'), nullable=False)
     mp3_path = db.Column(db.String(512), nullable=False)
+    start_measure = db.Column(db.Integer, nullable=True)
+    end_measure = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

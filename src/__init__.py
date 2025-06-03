@@ -1,20 +1,20 @@
 from flask import Flask
 from flasgger import Swagger
 from flask_cors import CORS
-from flask_migrate import Migrate  # ✅ 추가!
+from flask_migrate import Migrate
 from src.config import Config
 from src.models import db
 
 def create_app():
     app = Flask(__name__)
 
-    # ✅ 전체 앱에 CORS 설정 (프리플라이트 OPTIONS 포함)
+    # ✅ 전체 앱에 CORS 설정 (OPTIONS preflight 포함)
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     # ✅ Flask 설정 로드
     app.config.from_object(Config)
 
-    # ✅ Swagger 초기화 (API 문서)
+    # ✅ Swagger 초기화
     swagger_template = {
         "swagger": "2.0",
         "info": {
@@ -41,10 +41,10 @@ def create_app():
     # ✅ DB 초기화
     db.init_app(app)
 
-    # ✅ Flask-Migrate 초기화! 🚀
+    # ✅ Flask-Migrate 초기화
     Migrate(app, db)
 
-    # ✅ 라우트/블루프린트 등록 및 Blueprint 별 CORS 허용
+    # ✅ 라우트 등록
     from src.routes.auth_route import auth_bp
     from src.routes.user_route import user_bp
     from src.routes.score_route import score_bp
@@ -53,8 +53,13 @@ def create_app():
     from src.routes.mypage_uploadscore_route import upload_score_bp
     from src.routes.mypage_resultscore_route import result_score_bp
 
-    for bp in [auth_bp, user_bp, score_bp, transform_bp, result_bp, upload_score_bp, result_score_bp]:
-        CORS(bp, origins="http://localhost:5173", supports_credentials=True)
-        app.register_blueprint(bp)
+    # ✅ Blueprint 등록 (transform만 /transform prefix 부여)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(user_bp)
+    app.register_blueprint(score_bp)
+    app.register_blueprint(transform_bp, url_prefix='/transform')  # 🔥 핵심 수정
+    app.register_blueprint(result_bp)
+    app.register_blueprint(upload_score_bp)
+    app.register_blueprint(result_score_bp)
 
     return app
