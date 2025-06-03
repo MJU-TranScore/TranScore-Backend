@@ -276,7 +276,9 @@ def extract_melody_route(score_id):
           properties:
             result_id: {type: integer}
             mp3_path: {type: string}
-            message: {type: string}
+            midi_path: {type: string}
+            title: {type: string}
+            key_signature: {type: string}
       404:
         description: 악보 또는 결과를 찾을 수 없음
     """
@@ -286,17 +288,9 @@ def extract_melody_route(score_id):
 
     try:
         start, end = 1, 9999
-        result_id = extract_melody(score, start, end)
+        result_info = extract_melody(score, start, end)  # ✅ dict 반환
 
-        result = Result.query.get(result_id)
-        if not result:
-            return jsonify({'error': 'Melody result not found'}), 500
-
-        return jsonify({
-            'result_id': result.id,
-            'mp3_path': result.audio_path,
-            'message': f'Melody extracted from measure {start} to {end}'
-        }), 200
+        return jsonify(result_info), 200  # ✅ 그대로 반환
 
     except Exception as e:
         print("🔥 Melody 추출 중 서버 에러:", e)

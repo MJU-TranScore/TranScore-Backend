@@ -14,7 +14,10 @@ def save_result_score(user_id, result_id):
     return True
 
 def get_saved_result_scores(user_id, result_type=None):
-    # ✅ 명확히 join 순서를 select_from()으로 지정
+    """
+    유저가 저장한 변환 결과 목록을 Result 및 Score와 함께 반환
+    반환값: [(ResultScoreSave, Result, Score), ...]
+    """
     query = (
         db.session.query(ResultScoreSave, Result, Score)
         .select_from(ResultScoreSave)
@@ -24,12 +27,14 @@ def get_saved_result_scores(user_id, result_type=None):
     )
     if result_type:
         query = query.filter(Result.type == result_type)
+
     return query.all()
 
 def delete_result_score(user_id, result_id):
     save = ResultScoreSave.query.filter_by(user_id=user_id, result_id=result_id).first()
     if not save:
         return False
+
     db.session.delete(save)
     db.session.commit()
     return True

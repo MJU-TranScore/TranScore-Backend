@@ -1,5 +1,3 @@
-# src/routes/mypage_resultscore_route.py
-
 from flask import Blueprint, request, jsonify
 from flasgger import swag_from
 from src.services.mypage_resultscore_service import (
@@ -28,6 +26,7 @@ def get_user_id_from_token():
 
     return user_id, None, None
 
+
 @result_score_bp.route("/<int:result_id>/save", methods=["POST"])
 @swag_from({
     'tags': ['Mypage'],
@@ -51,6 +50,7 @@ def save_result(result_id):
         return jsonify({"message": "변환 결과가 저장되었습니다"}), 201
     return jsonify({"message": "이미 저장된 결과입니다"}), 400
 
+
 @result_score_bp.route("", methods=["GET"])
 @swag_from({
     'tags': ['Mypage'],
@@ -70,8 +70,8 @@ def save_result(result_id):
                             'result_type': 'transpose',
                             'saved_at': '2025-05-18T12:34:56',
                             'title': '제목',
-                            'original_filename': '파일명.png',
-                            'key': 'C'
+                            'original_filename': '파일명.mid',
+                            'key': 'C Major'
                         }
                     ]
                 }
@@ -86,7 +86,6 @@ def get_saved_results():
         return error_response, status_code
 
     result_type = request.args.get("type")
-    # ✅ services에서 명확한 JOIN으로 처리하여 score 정보까지 가져옴
     saved = get_saved_result_scores(user_id, result_type)
 
     result = []
@@ -95,12 +94,13 @@ def get_saved_results():
             "result_id": r.id,
             "result_type": r.type,
             "saved_at": s.saved_at.isoformat(),
-            "title": score.title or "제목 없음",
-            "original_filename": score.original_filename or "없음",
-            "key": score.key or "없음"
+            "title": r.title or score.title or "제목 없음",  # ✅ Result 우선
+            "original_filename": r.original_filename or score.original_filename or "없음",  # ✅ .mid 우선
+            "key": r.key or "없음"
         })
 
     return jsonify(result), 200
+
 
 @result_score_bp.route("/<int:result_id>", methods=["DELETE"])
 @swag_from({
