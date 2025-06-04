@@ -65,13 +65,18 @@ def upload_score_for_transform():
         upload_dir = 'uploaded_scores'
         os.makedirs(upload_dir, exist_ok=True)
 
-        filename = secure_filename(file.filename)
+        # ✅ UUID 기반 고유 파일명 생성
+        from uuid import uuid4
+        unique_id = uuid4().hex
+        original_name = secure_filename(file.filename)
+        filename = f"{unique_id}_{original_name}"
+
         file_path = os.path.join(upload_dir, filename)
         file.save(file_path)
 
-        # ✅ title이 없으면 파일명 기반으로 설정 (확장자 제거)
+        # ✅ title이 없으면 원본 파일명에서 확장자 제거한 걸로 설정
         if not title:
-            title = os.path.splitext(filename)[0]
+            title = os.path.splitext(original_name)[0]
 
         score_id = save_score_file_to_db(filename, title)
 

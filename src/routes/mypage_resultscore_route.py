@@ -145,3 +145,24 @@ def delete_result(result_id):
     if delete_result_score(user_id, result_id):
         return jsonify({"message": "저장이 해제되었습니다"}), 200
     return jsonify({"message": "저장 내역이 없습니다"}), 404
+
+
+# ✅ 추가된 마이페이지 전용 결과 조회 API
+@result_score_bp.route("/<int:result_id>/view", methods=["GET"])
+def view_result_for_mypage(result_id):
+    """
+    마이페이지에서 결과 보기용 API
+    """
+    result = Result.query.get(result_id)
+    if not result:
+        return jsonify({"error": "Result not found"}), 404
+
+    return jsonify({
+        "result_id": result.id,
+        "title": result.title,
+        "image_url": result.image_url,
+        "key_signature": result.key_signature,
+        "created_at": result.created_at.strftime('%Y-%m-%d %H:%M'),
+        "mp3_path": result.mp3_path,
+        "midi_path": result.midi_path
+    }), 200
